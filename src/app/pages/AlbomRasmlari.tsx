@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { ImageUpload } from "../components/ImageUpload";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { SEO } from "../components/SEO";
 
 interface Album {
   id: number;
@@ -170,6 +172,10 @@ export default function AlbomRasmlari() {
       transition={{ duration: 0.5 }}
       className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto overflow-x-hidden"
     >
+      <SEO 
+        title={album?.title_uz || "Albom rasmlari"}
+        description={album?.description_uz || "Albomdagi barcha rasmlarni ko'rish va boshqarish."}
+      />
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
@@ -232,10 +238,11 @@ export default function AlbomRasmlari() {
                   key={photo.id}
                   className="group relative rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-900"
                 >
-                  <img
+                  <ImageWithFallback
                     src={getImageUrl(photo.thumbnail || photo.image)}
                     alt={photo.caption || ""}
-                    className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-40"
+                    objectFit="cover"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
                   {photo.caption && (

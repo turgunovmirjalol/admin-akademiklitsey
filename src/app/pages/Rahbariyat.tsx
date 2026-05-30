@@ -8,6 +8,7 @@ import { ImageUpload } from "../components/ImageUpload";
 import { toast } from "sonner";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
+import { SEO } from "../components/SEO";
 
 interface ManagementTranslation {
   position: string;
@@ -226,6 +227,11 @@ export default function Rahbariyat() {
       transition={{ duration: 0.5 }}
       className="p-6 space-y-6"
     >
+      <SEO 
+        title="Rahbariyat" 
+        description="FDTU Akademik Litseyi rahbariyati haqida ma'lumot." 
+        keywords="Rahbariyat, Direktor, Litsey, FDTU"
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

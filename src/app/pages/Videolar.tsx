@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { VideoUpload, ImageUpload } from "../components/ImageUpload";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { SEO } from "../components/SEO";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -258,6 +260,10 @@ export default function Videolar() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto overflow-x-hidden">
+      <SEO 
+        title="Videolar" 
+        description="FDTU Akademik Litseyi videolavhalari." 
+      />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Video lavhalar</h1>
@@ -298,10 +304,11 @@ export default function Videolar() {
             >
               <div className="aspect-video bg-black relative overflow-hidden group/player">
                 {video.thumbnail ? (
-                  <img
+                  <ImageWithFallback
                     src={video.thumbnail}
                     alt={video.translations?.uz?.title || "Video"}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="w-full h-full"
+                    objectFit="contain"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-900">

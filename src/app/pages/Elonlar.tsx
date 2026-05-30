@@ -9,6 +9,7 @@ import { ImageUpload } from "../components/ImageUpload";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
+import { SEO } from "../components/SEO";
 
 interface AnnouncementTranslation {
   title: string;
@@ -242,6 +243,11 @@ export default function Elonlar() {
       transition={{ duration: 0.5 }}
       className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto overflow-x-hidden"
     >
+      <SEO 
+        title="E'lonlar" 
+        description="FDTU Akademik Litseyining eng muhim e'lonlari va xabarnomalari." 
+        keywords="E'lonlar, Litsey, FDTU, Xabarlar"
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

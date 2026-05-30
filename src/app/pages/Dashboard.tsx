@@ -4,6 +4,7 @@ import { Users, UserCog, Newspaper, Bell, Plus, Eye, Loader2, ShieldCheck } from
 import { API_BASE_URL } from "../../config/api";
 import { Link } from "react-router";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
+import { SEO } from "../components/SEO";
 
 interface StatItem {
   label: string;
@@ -84,6 +85,10 @@ export default function Dashboard() {
       transition={{ duration: 0.5 }}
       className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto overflow-x-hidden"
     >
+      <SEO 
+        title="Dashboard" 
+        description="FDTU Akademik Litseyi boshqaruv paneli asosiy sahifasi. Statistika va so'nggi ma'lumotlar." 
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

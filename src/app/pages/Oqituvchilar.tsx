@@ -8,6 +8,7 @@ import { ImageUpload } from "../components/ImageUpload";
 import { toast } from "sonner";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
+import { SEO } from "../components/SEO";
 
 interface TeacherTranslation {
   position: string;
@@ -281,6 +282,11 @@ export default function Oqituvchilar() {
       transition={{ duration: 0.5 }}
       className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto overflow-x-hidden"
     >
+      <SEO 
+        title="O'qituvchilar" 
+        description="FDTU Akademik Litseyi professor-o'qituvchilari haqida ma'lumot." 
+        keywords="O'qituvchilar, Ustozlar, Litsey, FDTU"
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

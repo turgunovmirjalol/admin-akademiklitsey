@@ -8,6 +8,7 @@ import { ImageUpload } from "../components/ImageUpload";
 import { toast } from "sonner";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { PageSkeleton as SkeletonLoader, TableRowSkeleton } from "../components/PageSkeleton";
+import { SEO } from "../components/SEO";
 
 interface NewsTranslation {
   title: string;
@@ -252,6 +253,11 @@ export default function Yangiliklar() {
       transition={{ duration: 0.5 }}
       className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto overflow-x-hidden"
     >
+      <SEO 
+        title="Yangiliklar" 
+        description="FDTU Akademik Litseyining so'nggi yangiliklari va muhim voqealari." 
+        keywords="Yangiliklar, Litsey, FDTU, Voqealar"
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Eye, EyeOff, Lock, User, LogIn } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { SEO } from "../components/SEO";
 
 interface LoginProps {
   onLogin: () => void;
@@ -57,6 +59,10 @@ export default function Login({ onLogin }: LoginProps) {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#0a192f] flex items-center justify-center p-4 transition-colors">
+      <SEO 
+        title="Kirish" 
+        description="FDTU Akademik Litseyi boshqaruv paneliga kirish." 
+      />
       {/* Abstract Background Shapes */}
       <div className="absolute top-[-10%] -left-[10%] w-[40%] h-[40%] bg-[#0d89b1]/20 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-[-10%] -right-[10%] w-[40%] h-[40%] bg-[#0d89b1]/10 rounded-full blur-[120px] animate-pulse delay-700" />
@@ -66,10 +72,11 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
             <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-3xl shadow-2xl flex items-center justify-center p-5 border border-white/20 transition-all hover:scale-105 duration-300">
-              <img
+              <ImageWithFallback
                 src="/logoicon.png"
                 alt="FDTU AL Logo"
-                className="w-full h-full object-contain filter drop-shadow-lg"
+                className="w-full h-full"
+                objectFit="contain"
               />
             </div>
           </div>

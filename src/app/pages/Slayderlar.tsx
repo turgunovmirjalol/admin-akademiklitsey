@@ -6,6 +6,8 @@ import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { ImageUpload, VideoUpload } from "../components/ImageUpload";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../components/ui/alert-dialog";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { SEO } from "../components/SEO";
 
 interface Slider {
   id: number;
@@ -223,6 +225,10 @@ export default function Slayderlar() {
       transition={{ duration: 0.5 }}
       className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto overflow-x-hidden"
     >
+      <SEO 
+        title="Slayderlar" 
+        description="Asosiy sahifa slayderlarini boshqarish." 
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#1f2937] p-5 md:p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-800">
         <div>
@@ -260,10 +266,11 @@ export default function Slayderlar() {
             className="group bg-white dark:bg-[#1f2937] border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all relative flex flex-col md:flex-row"
           >
             <div className="w-full md:w-72 lg:w-96 aspect-video md:aspect-auto relative overflow-hidden">
-              <img
+              <ImageWithFallback
                 src={getImageUrl(slider.image)}
                 alt={slider.translations?.uz?.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                className="w-full h-full"
+                objectFit="contain"
               />
               <div className="absolute inset-0 bg-black/20" />
             </div>

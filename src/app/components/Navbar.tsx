@@ -2,6 +2,7 @@ import { Bell, Sun, Moon, LogOut, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { useAuth } from "../context/AuthContext";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 export function Navbar() {
   const { theme, setTheme } = useTheme();
@@ -59,10 +60,11 @@ export function Navbar() {
               </p>
             </div>
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#0d89b1]/20 relative">
-              <img
+              <ImageWithFallback
                 src="/logoicon.png"
                 alt="Admin"
-                className="w-full h-full object-cover"
+                className="w-full h-full"
+                objectFit="contain"
               />
             </div>
             <ChevronDown className={`w-4 h-4 text-[#64748b] transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />

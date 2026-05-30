@@ -254,7 +254,7 @@ export function FileUpload({
                 <img
                   src={preview}
                   alt={`Preview ${index}`}
-                  className="w-full h-32 object-cover rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-colors"
+                  className="w-full h-32 object-contain bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-colors"
                 />
               )}
               <button

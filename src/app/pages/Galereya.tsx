@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { ImageUpload } from "../components/ImageUpload";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { SEO } from "../components/SEO";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -179,6 +181,11 @@ export default function Galereya() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      <SEO 
+        title="Galereya" 
+        description="FDTU Akademik Litseyi hayotidan yorqin lavhalar va fotogalereya." 
+        keywords="Galereya, Rasmlar, Litsey, FDTU"
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -222,10 +229,11 @@ export default function Galereya() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="group relative aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"
             >
-              <img
+              <ImageWithFallback
                 src={getImageUrl(photo.cover_image)}
                 alt="Fotosurat"
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 cursor-pointer"
+                className="w-full h-full cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                objectFit="contain"
                 onClick={() => setSelectedPhoto(getImageUrl(photo.cover_image))}
               />
 
@@ -373,12 +381,11 @@ export default function Galereya() {
           </DialogHeader>
           {selectedPhoto && (
             <div className="relative w-full h-full flex items-center justify-center p-4">
-              <motion.img
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
+              <ImageWithFallback
                 src={selectedPhoto}
                 alt="Kattalashtirilgan rasm"
-                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                className="max-w-full max-h-[90vh] rounded-lg shadow-2xl"
+                objectFit="contain"
               />
               <button
                 onClick={() => setSelectedPhoto(null)}

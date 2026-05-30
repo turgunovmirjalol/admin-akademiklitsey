@@ -21,6 +21,7 @@ import {
   Film,
 } from "lucide-react";
 import { useState } from "react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 const navItems = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -74,10 +75,11 @@ export function Sidebar() {
         {/* Logo */}
         <div className="h-[60px] flex items-center justify-center border-b border-gray-200 dark:border-gray-700 px-4">
           <div className="flex items-center gap-3">
-            <img
+            <ImageWithFallback
               src="/logoicon.png"
               alt="FDTU AL Logo"
-              className="w-10 h-10 object-contain"
+              className="w-10 h-10"
+              objectFit="contain"
             />
             <div className="text-center">
               <h1 className="text-lg font-bold text-[#0d89b1]">FDTU AL</h1>
