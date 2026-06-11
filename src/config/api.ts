@@ -1,4 +1,4 @@
-export const API_BASE_URL = "https://academiklitsey.pythonanywhere.com";
+export const API_BASE_URL = "https://api.fdtu1al.uz";
 
 export const getImageUrl = (path: string | null) => {
   if (!path) return "";
