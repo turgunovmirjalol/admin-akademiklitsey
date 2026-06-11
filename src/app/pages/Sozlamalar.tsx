@@ -1,10 +1,17 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Save, Loader2, Globe, Phone, Mail, MapPin, Share2, Building, Calendar } from "lucide-react";
+import { Save, Loader2, Globe, Phone, Mail, MapPin, Share2, Building, Calendar, Key, Eye, EyeOff, Lock } from "lucide-react";
 import { ImageUpload } from "../components/ImageUpload";
 import { toast } from "sonner";
 import { API_BASE_URL, getImageUrl } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/dialog";
 
 interface Settings {
   id: number;
@@ -63,6 +70,18 @@ export default function Sozlamalar() {
     facebook: "",
     youtube: "",
   });
+
+  // Password change state
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const languages = [
     { id: "uz", label: "O'zbekcha" },
@@ -173,6 +192,74 @@ export default function Sozlamalar() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validation
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      toast.error("Yangi parol va tasdiqlash paroli bir-biriga mos kelmadi");
+      return;
+    }
+
+    if (passwordData.new_password.length < 6) {
+      toast.error("Yangi parol kamida 6 belgidan iborat bo'lishi kerak");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    const token = sessionStorage.getItem("auth_token");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/change-password/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          current_password: passwordData.current_password,
+          new_password: passwordData.new_password,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Parol muvaffaqiyatli o'zgartirildi");
+        setPasswordModalOpen(false);
+        setPasswordData({
+          current_password: "",
+          new_password: "",
+          confirm_password: "",
+        });
+      } else {
+        const errData = await response.json();
+        if (errData && typeof errData === 'object') {
+          const errorMessages = Object.entries(errData)
+            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join('\n');
+          toast.error(errorMessages || "Xatolik yuz berdi");
+        } else {
+          toast.error("Joriy parol noto'g'ri yoki xatolik yuz berdi");
+        }
+      }
+    } catch (error) {
+      toast.error("Server bilan bog'lanishda xatolik");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const resetPasswordModal = () => {
+    setPasswordModalOpen(false);
+    setPasswordData({
+      current_password: "",
+      new_password: "",
+      confirm_password: "",
+    });
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
   };
 
   if (loading) {
@@ -396,9 +483,10 @@ export default function Sozlamalar() {
           </section>
         </div>
 
-        {/* Right Column: Social Networks */}
-        <div className="lg:col-span-4">
-          <section className="bg-white dark:bg-[#1f2937] p-5 md:p-8 rounded-lg shadow-sm border border-gray-100 dark:border-gray-800 transition-all hover:shadow-md sticky top-6">
+        {/* Right Column: Social Networks & Password */}
+        <div className="lg:col-span-4 space-y-6 md:space-y-8">
+          {/* Social Networks */}
+          <section className="bg-white dark:bg-[#1f2937] p-5 md:p-8 rounded-lg shadow-sm border border-gray-100 dark:border-gray-800 transition-all hover:shadow-md">
             <div className="flex items-center gap-3 mb-6 md:mb-8 pb-4 border-b border-gray-50 dark:border-gray-800">
               <Share2 className="w-5 h-5 md:w-6 md:h-6 text-[#0d89b1]" />
               <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Ijtimoiy tarmoqlar</h2>
@@ -473,8 +561,158 @@ export default function Sozlamalar() {
               </p>
             </div>
           </section>
+
+          {/* Password Change Section */}
+          <section className="bg-white dark:bg-[#1f2937] p-5 md:p-8 rounded-lg shadow-sm border border-gray-100 dark:border-gray-800 transition-all hover:shadow-md">
+            <div className="flex items-center gap-3 mb-6 md:mb-8 pb-4 border-b border-gray-50 dark:border-gray-800">
+              <Lock className="w-5 h-5 md:w-6 md:h-6 text-[#0d89b1]" />
+              <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Xavfsizlik</h2>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Hisobingiz xavfsizligi uchun parolingizni muntazam yangilab turing.
+              </p>
+              <button
+                type="button"
+                onClick={() => setPasswordModalOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700 font-semibold text-sm active:scale-[0.98]"
+              >
+                <Key className="w-4 h-4" />
+                Parolni o'zgartirish
+              </button>
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-900/20">
+              <p className="text-[10px] md:text-xs text-blue-700 dark:text-blue-500 leading-relaxed font-medium">
+                Parol kamida 6 belgidan iborat bo'lishi va murakkab bo'lishi tavsiya etiladi.
+              </p>
+            </div>
+          </section>
         </div>
       </form>
+
+      {/* Password Change Modal */}
+      <Dialog open={passwordModalOpen} onOpenChange={(open) => {
+        if (!open) resetPasswordModal();
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+              <Key className="w-5 h-5 text-[#0d89b1]" />
+              Parolni o'zgartirish
+            </DialogTitle>
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
+              Hisobingiz xavfsizligi uchun joriy parolingizni tasdiqlang va yangi parolni kiriting.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handlePasswordChange} className="space-y-5 pt-2">
+            {/* Current Password */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Joriy parol
+              </label>
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={passwordData.current_password}
+                  onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
+                  className="w-full px-4 pr-12 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#0d89b1]/20 focus:border-[#0d89b1] outline-none transition-all dark:text-white text-sm"
+                  placeholder="Joriy parolni kiriting"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* New Password */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Yangi parol
+              </label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  value={passwordData.new_password}
+                  onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
+                  className="w-full px-4 pr-12 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#0d89b1]/20 focus:border-[#0d89b1] outline-none transition-all dark:text-white text-sm"
+                  placeholder="Yangi parolni kiriting"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm New Password */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Yangi parolni tasdiqlang
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={passwordData.confirm_password}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
+                  className="w-full px-4 pr-12 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#0d89b1]/20 focus:border-[#0d89b1] outline-none transition-all dark:text-white text-sm"
+                  placeholder="Yangi parolni qayta kiriting"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={resetPasswordModal}
+                disabled={isChangingPassword}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-all disabled:opacity-50"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="submit"
+                disabled={isChangingPassword}
+                className="flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-[#0d89b1] hover:bg-[#0a6d8f] rounded-lg transition-all shadow-lg hover:shadow-[#0d89b1]/20 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isChangingPassword ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    O'zgartirilmoqda...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    O'zgartirish
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
