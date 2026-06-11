@@ -64,53 +64,53 @@ export default function Login({ onLogin }: LoginProps) {
         description="FDTU Akademik Litseyi boshqaruv paneliga kirish." 
       />
       {/* Abstract Background Shapes */}
-      <div className="absolute top-[-10%] -left-[10%] w-[40%] h-[40%] bg-[#0d89b1]/20 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute bottom-[-10%] -right-[10%] w-[40%] h-[40%] bg-[#0d89b1]/10 rounded-full blur-[120px] animate-pulse delay-700" />
+      <div className="absolute top-[-10%] -left-[10%] w-[40%] h-[40%] bg-[#0d89b1]/20 blur-[120px] animate-pulse" />
+      <div className="absolute bottom-[-10%] -right-[10%] w-[40%] h-[40%] bg-[#0d89b1]/10 blur-[120px] animate-pulse delay-700" />
       
       <div className="w-full max-w-md relative z-10">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-6">
-            <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-3xl shadow-2xl flex items-center justify-center p-5 border border-white/20 transition-all hover:scale-105 duration-300">
+          <div className="flex justify-center mb-5">
+            <div className="w-20 h-20 bg-gradient-to-br from-[#0d89b1] to-[#0a6d8f] shadow-lg flex items-center justify-center p-4 border border-white/10 transition-all duration-300">
               <ImageWithFallback
                 src="/logoicon.png"
                 alt="FDTU AL Logo"
-                className="w-full h-full"
+                className="w-full h-full brightness-0 invert"
                 objectFit="contain"
               />
             </div>
           </div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">FDTU AL</h1>
-          <p className="text-white/60 font-medium tracking-wide uppercase text-sm">Boshqaruv Paneli</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">FDTU AL</h1>
+          <p className="text-white/50 font-medium tracking-wide uppercase text-xs">Boshqaruv Paneli</p>
         </div>
 
         {/* Login Form */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-10 transition-all border border-white/10">
-          <h2 className="text-2xl font-bold text-white mb-8 text-center">
+        <div className="bg-white/10 backdrop-blur-xl shadow-[0_15px_40px_rgba(0,0,0,0.3)] p-8 border border-white/10">
+          <h2 className="text-xl font-semibold text-white mb-6 text-center">
             Tizimga kirish
           </h2>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm text-center backdrop-blur-sm animate-shake">
+            <div className="mb-5 p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center backdrop-blur-sm animate-shake">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Username */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-white/70 ml-1">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-white/60 uppercase tracking-wider">
                 Login
               </label>
               <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300">
-                  <User className="w-5 h-5 text-white/40 group-focus-within:text-[#0d89b1]" />
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-300">
+                  <User className="w-4 h-4 text-white/40 group-focus-within:text-[#0d89b1]" />
                 </div>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:border-[#0d89b1] focus:ring-4 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20"
+                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 focus:outline-none focus:border-[#0d89b1] focus:ring-2 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20 text-sm"
                   placeholder="Loginni kiriting"
                   required
                 />
@@ -118,31 +118,31 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
 
             {/* Password */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-white/70 ml-1">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-white/60 uppercase tracking-wider">
                 Parol
               </label>
               <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300">
-                  <Lock className="w-5 h-5 text-white/40 group-focus-within:text-[#0d89b1]" />
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-300">
+                  <Lock className="w-4 h-4 text-white/40 group-focus-within:text-[#0d89b1]" />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-14 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:border-[#0d89b1] focus:ring-4 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20"
+                  className="w-full pl-10 pr-12 py-3 bg-white/5 border border-white/10 focus:outline-none focus:border-[#0d89b1] focus:ring-2 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20 text-sm"
                   placeholder="Parolni kiriting"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors p-1"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors p-1"
                 >
                   {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
+                    <EyeOff className="w-4 h-4" />
                   ) : (
-                    <Eye className="w-5 h-5" />
+                    <Eye className="w-4 h-4" />
                   )}
                 </button>
               </div>
@@ -152,27 +152,22 @@ export default function Login({ onLogin }: LoginProps) {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-[#0d89b1] hover:bg-[#0a6d8f] text-white rounded-2xl transition-all duration-300 disabled:opacity-50 font-bold text-lg shadow-[0_10px_20px_rgba(13,137,177,0.3)] active:scale-[0.98] mt-8"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#0d89b1] hover:bg-[#0a6d8f] text-white transition-all duration-300 disabled:opacity-50 font-semibold text-sm shadow-[0_8px_16px_rgba(13,137,177,0.3)] active:scale-[0.98] mt-6"
             >
               {isLoading ? (
                 <>
-                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Tekshirilmoqda...
                 </>
               ) : (
                 <>
-                  <LogIn className="w-6 h-6" />
+                  <LogIn className="w-4 h-4" />
                   Kirish
                 </>
               )}
             </button>
           </form>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-white/30 text-sm mt-10 font-medium">
-          © 2026 FDTU AL. Barcha huquqlar himoyalangan.
-        </p>
       </div>
     </div>
   );
