@@ -79,7 +79,7 @@ export default function Login({ onLogin }: LoginProps) {
               />
             </div>
           </div>
-          <h1 className="text-lg font-bold text-white tracking-tight leading-snug max-w-xs mx-auto">
+          <h1 className="text-sm font-bold text-white tracking-tight leading-snug max-w-xs mx-auto">
             FARG'ONA DAVLAT TEXNIKA UNIVERSITETI <br />1-SON AKADEMIK LITSEYI
           </h1>
         </div>
