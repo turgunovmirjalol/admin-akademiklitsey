@@ -35,7 +35,6 @@ export default function Login({ onLogin }: LoginProps) {
       const data = await response.json();
 
       if (response.ok) {
-        // Store auth token in sessionStorage
         sessionStorage.setItem("auth_token", data.access);
         sessionStorage.setItem("refresh_token", data.refresh);
         sessionStorage.setItem(
@@ -70,28 +69,29 @@ export default function Login({ onLogin }: LoginProps) {
       <div className="w-full max-w-md relative z-10">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-5">
-            <div className="w-20 h-20 bg-gradient-to-br from-[#0d89b1] to-[#0a6d8f] shadow-lg flex items-center justify-center p-4 border border-white/10 transition-all duration-300">
+          <div className="flex justify-center mb-4">
+            <div className="w-24 h-24 bg-white rounded-xl shadow-lg flex items-center justify-center p-4 border border-gray-200">
               <ImageWithFallback
-                src="/logoicon.png"
-                alt="FDTU AL Logo"
-                className="w-full h-full brightness-0 invert"
+                src="/litseylogo 1.png"
+                alt="Farg'ona Davlat Texnika Universiteti 1-Son Akademik Litseyi"
+                className="w-full h-full"
                 objectFit="contain"
               />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">FDTU AL</h1>
-          <p className="text-white/50 font-medium tracking-wide uppercase text-xs">Boshqaruv Paneli</p>
+          <h1 className="text-lg font-bold text-white tracking-tight leading-snug max-w-xs mx-auto">
+            FARG'ONA DAVLAT TEXNIKA UNIVERSITETI <br />1-SON AKADEMIK LITSEYI
+          </h1>
         </div>
 
         {/* Login Form */}
-        <div className="bg-white/10 backdrop-blur-xl shadow-[0_15px_40px_rgba(0,0,0,0.3)] p-8 border border-white/10">
+        <div className="bg-white/10 backdrop-blur-xl rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.3)] p-8 border border-white/10">
           <h2 className="text-xl font-semibold text-white mb-6 text-center">
             Tizimga kirish
           </h2>
 
           {error && (
-            <div className="mb-5 p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center backdrop-blur-sm animate-shake">
+            <div className="mb-5 p-3.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center backdrop-blur-sm animate-shake">
               {error}
             </div>
           )}
@@ -110,7 +110,7 @@ export default function Login({ onLogin }: LoginProps) {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 focus:outline-none focus:border-[#0d89b1] focus:ring-2 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20 text-sm"
+                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-[#0d89b1] focus:ring-2 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20 text-sm"
                   placeholder="Loginni kiriting"
                   required
                 />
@@ -130,7 +130,7 @@ export default function Login({ onLogin }: LoginProps) {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 bg-white/5 border border-white/10 focus:outline-none focus:border-[#0d89b1] focus:ring-2 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20 text-sm"
+                  className="w-full pl-10 pr-12 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-[#0d89b1] focus:ring-2 focus:ring-[#0d89b1]/10 transition-all text-white placeholder-white/20 text-sm"
                   placeholder="Parolni kiriting"
                   required
                 />
@@ -152,7 +152,7 @@ export default function Login({ onLogin }: LoginProps) {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#0d89b1] hover:bg-[#0a6d8f] text-white transition-all duration-300 disabled:opacity-50 font-semibold text-sm shadow-[0_8px_16px_rgba(13,137,177,0.3)] active:scale-[0.98] mt-6"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#0d89b1] hover:bg-[#0a6d8f] rounded-lg text-white transition-all duration-300 disabled:opacity-50 font-semibold text-sm shadow-[0_8px_16px_rgba(13,137,177,0.3)] active:scale-[0.98] mt-6"
             >
               {isLoading ? (
                 <>
