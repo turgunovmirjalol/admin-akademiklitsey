@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { API_BASE_URL, getImageUrl } from "../../config/api";
+import { SETTINGS_URL } from "../../config/api";
 
 interface Settings {
   id: number;
@@ -7,7 +7,7 @@ interface Settings {
   phone: string;
   email: string;
   website: string;
-  logo: string;
+  logo: string | null;
   telegram: string | null;
   instagram: string | null;
   facebook: string | null;
@@ -40,13 +40,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/settings/`);
+      const token = sessionStorage.getItem("auth_token");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(SETTINGS_URL, { headers });
       const data = await response.json();
       if (response.ok) {
         const settingsData = Array.isArray(data) ? data[0] : (data.results ? data.results[0] : data);
         if (settingsData) {
           setSettings(settingsData);
         }
+      } else {
+        console.error("Settings fetch failed with status:", response.status);
       }
     } catch (error) {
       console.error("Error fetching settings:", error);

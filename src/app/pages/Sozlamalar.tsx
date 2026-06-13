@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { Save, Loader2, Globe, Phone, Mail, MapPin, Share2, Building, Calendar, Key, Eye, EyeOff, Lock } from "lucide-react";
 import { ImageUpload } from "../components/ImageUpload";
 import { toast } from "sonner";
-import { API_BASE_URL, getImageUrl } from "../../config/api";
+import { API_BASE_URL, SETTINGS_URL, getImageUrl } from "../../config/api";
+import { useSettings } from "../context/SettingsContext";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import {
   Dialog,
@@ -19,7 +20,7 @@ interface Settings {
   phone: string;
   email: string;
   website: string;
-  logo: string;
+  logo: string | null;
   telegram: string | null;
   instagram: string | null;
   facebook: string | null;
@@ -30,17 +31,7 @@ interface Settings {
       full_name: string;
       address: string;
     };
-    ru?: {
-      short_name: string;
-      full_name: string;
-      address: string;
-    };
-    en?: {
-      short_name: string;
-      full_name: string;
-      address: string;
-    };
-    uz_cyrl?: {
+    ru: {
       short_name: string;
       full_name: string;
       address: string;
@@ -48,7 +39,50 @@ interface Settings {
   };
 }
 
+function buildSettingsFormData(formData: {
+  translations: {
+    uz: { short_name: string; full_name: string; address: string };
+    ru: { short_name: string; full_name: string; address: string };
+  };
+  established_year: number;
+  phone: string;
+  email: string;
+  website: string;
+  logo: File | string | null;
+  telegram: string;
+  instagram: string;
+  facebook: string;
+  youtube: string;
+}) {
+  const data = new FormData();
+
+  data.append("short_name_uz", formData.translations.uz.short_name || "");
+  data.append("full_name_uz", formData.translations.uz.full_name || "");
+  data.append("address_uz", formData.translations.uz.address || "");
+  data.append("short_name_ru", formData.translations.ru.short_name || "");
+  data.append("full_name_ru", formData.translations.ru.full_name || "");
+  data.append("address_ru", formData.translations.ru.address || "");
+
+  if (formData.established_year > 0) {
+    data.append("established_year", String(formData.established_year));
+  }
+  data.append("phone", formData.phone || "");
+  data.append("email", formData.email || "");
+  data.append("website", formData.website || "");
+  data.append("telegram", formData.telegram || "");
+  data.append("instagram", formData.instagram || "");
+  data.append("facebook", formData.facebook || "");
+  data.append("youtube", formData.youtube || "");
+
+  if (formData.logo instanceof File) {
+    data.append("logo", formData.logo);
+  }
+
+  return data;
+}
+
 export default function Sozlamalar() {
+  const { refreshSettings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -86,8 +120,6 @@ export default function Sozlamalar() {
   const languages = [
     { id: "uz", label: "O'zbekcha" },
     { id: "ru", label: "Русский" },
-    // { id: "en", label: "English" },
-    // { id: "uz_cyrl", label: "Криллча" },
   ] as const;
 
   useEffect(() => {
@@ -97,17 +129,23 @@ export default function Sozlamalar() {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/settings`);
+      const token = sessionStorage.getItem("auth_token");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(SETTINGS_URL, { headers });
       if (response.status === 404) {
         setLoading(false);
         return;
       }
-      
+
       const data = await response.json();
       if (response.ok) {
         // Handle direct object or list response
         const settingsData = Array.isArray(data) ? data[0] : (data.results ? data.results[0] : data);
-        
+
         if (settingsData && settingsData.id) {
           setSettings(settingsData);
           setFormData({
@@ -136,38 +174,25 @@ export default function Sozlamalar() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
 
-    const token = sessionStorage.getItem("auth_token");
-    const data = new FormData();
-
-    // Translations fields
-    if (formData.translations.uz.short_name) data.append("short_name_uz", formData.translations.uz.short_name);
-    if (formData.translations.uz.full_name) data.append("full_name_uz", formData.translations.uz.full_name);
-    if (formData.translations.uz.address) data.append("address_uz", formData.translations.uz.address);
-    if (formData.translations.ru.short_name) data.append("short_name_ru", formData.translations.ru.short_name);
-    if (formData.translations.ru.full_name) data.append("full_name_ru", formData.translations.ru.full_name);
-    if (formData.translations.ru.address) data.append("address_ru", formData.translations.ru.address);
-
-    // Other fields
-    if (formData.established_year) data.append("established_year", String(formData.established_year));
-    if (formData.phone) data.append("phone", formData.phone);
-    if (formData.email) data.append("email", formData.email);
-    if (formData.website) data.append("website", formData.website);
-    if (formData.telegram) data.append("telegram", formData.telegram);
-    if (formData.instagram) data.append("instagram", formData.instagram);
-    if (formData.facebook) data.append("facebook", formData.facebook);
-    if (formData.youtube) data.append("youtube", formData.youtube);
-
-    if (formData.logo instanceof File) {
-      data.append("logo", formData.logo);
+    if (!formData.translations.uz.short_name.trim() || !formData.translations.uz.full_name.trim()) {
+      toast.error("O'zbekcha qisqa nom va to'liq nom majburiy");
+      setActiveTab("uz");
+      return;
     }
 
-    try {
-      const url = `${API_BASE_URL}/settings`;
-      const method = settings ? "PATCH" : "POST";
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
+      return;
+    }
 
-      const response = await fetch(url, {
+    setIsSaving(true);
+    const data = buildSettingsFormData(formData);
+    const method = settings ? "PATCH" : "PUT";
+
+    try {
+      const response = await fetch(SETTINGS_URL, {
         method,
         headers: { Authorization: `Bearer ${token}` },
         body: data,
@@ -175,19 +200,30 @@ export default function Sozlamalar() {
 
       if (response.ok) {
         toast.success("Sozlamalar muvaffaqiyatli saqlandi");
-        fetchSettings();
+        await fetchSettings();
+        await refreshSettings();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
       } else {
-        const errData = await response.json();
-        if (errData && typeof errData === 'object') {
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        if (errData && typeof errData === "object") {
           const errorMessages = Object.entries(errData)
-            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
-            .join('\n');
+            .map(([field, msgs]) => {
+              const message = Array.isArray(msgs) ? msgs.join(", ") : String(msgs);
+              return `${field}: ${message}`;
+            })
+            .join("\n");
           toast.error(errorMessages || "Xatolik yuz berdi");
         } else {
           toast.error("Xatolik yuz berdi");
         }
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSaving(false);
@@ -219,8 +255,9 @@ export default function Sozlamalar() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          current_password: passwordData.current_password,
+          old_password: passwordData.current_password,
           new_password: passwordData.new_password,
+          confirm_password: passwordData.confirm_password,
         }),
       });
 
@@ -311,7 +348,12 @@ export default function Sozlamalar() {
                 <ImageUpload
                   label="Logo"
                   value={formData.logo}
-                  onChange={(value) => setFormData({ ...formData, logo: value as File })}
+                  onChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      logo: Array.isArray(value) ? value[0] ?? null : value,
+                    })
+                  }
                   placeholder="Yuklash"
                   isUploading={isSaving}
                 />
