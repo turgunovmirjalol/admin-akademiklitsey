@@ -1,12 +1,11 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, X, Loader2, BarChart3, Save, Trash, Users, Book, Trophy, GraduationCap, School, UserCheck } from "lucide-react";
+import { Plus, Edit, Trash2, X, Loader2, BarChart3, Save, Users, Book, Trophy, GraduationCap, School, UserCheck } from "lucide-react";
 import { toast } from "sonner";
-import { API_BASE_URL } from "../../config/api";
+import { STATISTICS_URL } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../components/ui/alert-dialog";
 
-const ICON_MAP: Record<string, any> = {
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   users: Users,
   book: Book,
   trophy: Trophy,
@@ -25,12 +24,67 @@ interface Statistic {
   id: number;
   key: string;
   value: number;
-  label_uz: string;
-  label_ru?: string;
-  label_en?: string;
-  label_uz_cyrl?: string;
-  icon?: string;
+  translations: {
+    uz: { label: string };
+    ru: { label: string };
+  };
+  icon: string | null;
   sort_order: number;
+  updated_at?: string;
+}
+
+interface StatisticFormData {
+  key: string;
+  value: number;
+  label_uz: string;
+  label_ru: string;
+  icon: string;
+  sort_order: number;
+}
+
+function parseStatistic(stat: Statistic): StatisticFormData {
+  return {
+    key: stat.key || "",
+    value: stat.value ?? 0,
+    label_uz: stat.translations?.uz?.label || "",
+    label_ru: stat.translations?.ru?.label || "",
+    icon: stat.icon || "users",
+    sort_order: stat.sort_order ?? 0,
+  };
+}
+
+function buildStatisticPayload(formData: StatisticFormData, isEditing: boolean) {
+  const payload: Record<string, string | number | null> = {
+    value: formData.value,
+    label_uz: formData.label_uz.trim(),
+    label_ru: formData.label_ru.trim(),
+    icon: formData.icon.trim() || null,
+    sort_order: formData.sort_order,
+  };
+
+  if (!isEditing) {
+    payload.key = formData.key.trim();
+  }
+
+  return payload;
+}
+
+function parseApiErrors(errData: unknown): string {
+  if (!errData || typeof errData !== "object") {
+    return "Xatolik yuz berdi";
+  }
+
+  const record = errData as Record<string, unknown>;
+  if (typeof record.detail === "string") {
+    return record.detail;
+  }
+
+  return Object.entries(record)
+    .map(([field, msgs]) => {
+      const message = Array.isArray(msgs) ? msgs.join(", ") : String(msgs);
+      return `${field}: ${message}`;
+    })
+    .join("\n") || "Xatolik yuz berdi";
 }
 
 export default function Statistika() {
@@ -41,20 +95,18 @@ export default function Statistika() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<StatisticFormData>({
     key: "",
     value: 0,
     label_uz: "",
     label_ru: "",
-    icon: "users", // default icon
-    sort_order: 0,
+    icon: "users",
+    sort_order: 1,
   });
 
   const languages = [
     { id: "uz", label: "O'zbekcha" },
     { id: "ru", label: "Русский" },
-    // { id: "en", label: "English" },
-    // { id: "uz_cyrl", label: "Криллcha" },
   ] as const;
 
   useEffect(() => {
@@ -65,14 +117,19 @@ export default function Statistika() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/statistics`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(STATISTICS_URL, { headers });
       if (response.ok) {
         const data = await response.json();
         setStats(Array.isArray(data) ? data : data.results || []);
+      } else {
+        toast.error("Statistikalarni yuklashda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Statistikalarni yuklashda xatolik");
     } finally {
       setLoading(false);
@@ -81,56 +138,77 @@ export default function Statistika() {
 
   const handleAdd = () => {
     setEditingStat(null);
+    setActiveTab("uz");
     setFormData({
       key: "",
       value: 0,
       label_uz: "",
       label_ru: "",
       icon: "users",
-      sort_order: stats.length,
+      sort_order: stats.length + 1,
     });
     setIsModalOpen(true);
   };
 
   const handleEdit = (stat: Statistic) => {
     setEditingStat(stat);
-    setFormData({
-      key: stat.key || "",
-      value: stat.value || 0,
-      label_uz: stat.label_uz || "",
-      label_ru: stat.label_ru || "",
-      icon: stat.icon || "users",
-      sort_order: stat.sort_order || 0,
-    });
+    setActiveTab("uz");
+    setFormData(parseStatistic(stat));
     setIsModalOpen(true);
   };
 
   const handleDelete = async (id: number) => {
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
     try {
-      const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/statistics/${id}`, {
+      const response = await fetch(`${STATISTICS_URL}${id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("Statistika o'chirildi");
         fetchStats();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
+      } else {
+        toast.error("O'chirishda xatolik yuz berdi");
       }
-    } catch (error) {
-      toast.error("Xatolik yuz berdi");
+    } catch {
+      toast.error("Server bilan bog'lanishda xatolik");
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+
+    if (!editingStat && !formData.key.trim()) {
+      toast.error("Unikal key majburiy");
+      return;
+    }
+
+    if (!formData.label_uz.trim() && !formData.label_ru.trim()) {
+      toast.error("Kamida bitta tildagi nom kiritilishi kerak");
+      return;
+    }
 
     const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
       const url = editingStat
-        ? `${API_BASE_URL}/statistics/${editingStat.id}`
-        : `${API_BASE_URL}/statistics`;
+        ? `${STATISTICS_URL}${editingStat.id}/`
+        : STATISTICS_URL;
       const method = editingStat ? "PATCH" : "POST";
+      const payload = buildStatisticPayload(formData, !!editingStat);
 
       const response = await fetch(url, {
         method,
@@ -138,18 +216,25 @@ export default function Statistika() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
         toast.success(editingStat ? "Statistika tahrirlandi" : "Statistika qo'shildi");
         setIsModalOpen(false);
         fetchStats();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
       } else {
-        const errData = await response.json();
-        toast.error(errData.detail || "Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubmitting(false);
@@ -167,7 +252,6 @@ export default function Statistika() {
       transition={{ duration: 0.5 }}
       className="p-6 space-y-6 max-w-[1400px] mx-auto"
     >
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-[#1f2937] dark:text-gray-100">Statistika</h1>
@@ -184,7 +268,6 @@ export default function Statistika() {
         </button>
       </div>
 
-      {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => (
           <div
@@ -215,7 +298,7 @@ export default function Statistika() {
                   {stat.value}+
                 </div>
                 <div className="text-sm font-bold text-[#0d89b1] uppercase tracking-wider">
-                  {stat.label_uz}
+                  {stat.translations?.uz?.label || stat.translations?.ru?.label || stat.key}
                 </div>
               </div>
               <div className="pt-4 border-t border-gray-50 dark:border-gray-800 w-full">
@@ -235,7 +318,6 @@ export default function Statistika() {
         )}
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
@@ -273,19 +355,23 @@ export default function Statistika() {
             <form onSubmit={handleSubmit} className="p-10 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Unikal Key (Lotincha)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Unikal Key (Lotincha)
+                  </label>
                   <input
                     type="text"
                     value={formData.key}
                     onChange={(e) => setFormData({ ...formData, key: e.target.value })}
                     className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 outline-none transition-all"
                     placeholder="Masalan: students_count"
-                    required
+                    required={!editingStat}
                     disabled={!!editingStat}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Soni (Raqamda)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Soni (Raqamda)
+                  </label>
                   <input
                     type="text"
                     value={formData.value}
@@ -304,38 +390,54 @@ export default function Statistika() {
               <div className="p-8 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-6">
                 <h4 className="text-xs font-bold text-[#0d89b1] uppercase tracking-widest flex items-center gap-2">
                   <span className="w-4 h-[1px] bg-[#0d89b1]" />
-                  {languages.find(l => l.id === activeTab)?.label} tilidagi nomi
+                  {languages.find((l) => l.id === activeTab)?.label} tilidagi nomi
                 </h4>
-                
+
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    Nomi ({activeTab.toUpperCase()}) {activeTab === "uz" && "*"}
+                    Nomi ({activeTab.toUpperCase()})
                   </label>
                   <input
                     type="text"
-                    value={
-                      activeTab === "uz" ? formData.label_uz : formData.label_ru
-                    }
+                    value={activeTab === "uz" ? formData.label_uz : formData.label_ru}
                     onChange={(e) => {
-                      const field = `label_${activeTab}` as keyof typeof formData;
+                      const field = activeTab === "uz" ? "label_uz" : "label_ru";
                       setFormData({ ...formData, [field]: e.target.value });
                     }}
                     className="w-full px-5 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 outline-none transition-all"
-                    required={activeTab === "uz"}
                     placeholder="Masalan: O'quvchilar"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Ikonka (Lucide nomi)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Ikonka nomi
+                  </label>
                   <input
                     type="text"
                     value={formData.icon}
                     onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
                     className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 outline-none transition-all"
                     placeholder="Masalan: users, book, trophy"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Tartib raqami
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sort_order}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "" || /^\d+$/.test(val)) {
+                        setFormData({ ...formData, sort_order: val === "" ? 0 : Number(val) });
+                      }
+                    }}
+                    className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 outline-none transition-all"
+                    placeholder="1"
                   />
                 </div>
               </div>
