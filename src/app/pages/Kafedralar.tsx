@@ -2,22 +2,33 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Plus, Search, Edit, Trash2, X, Loader2, Users, Phone, Mail, MapPin, Check, Save } from "lucide-react";
 import { toast } from "sonner";
-import { API_BASE_URL } from "../../config/api";
+import { DEPARTMENTS_URL, TEACHERS_URL, parseApiErrors, parseListResponse } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../components/ui/alert-dialog";
 
 interface Department {
   id: number;
   slug: string;
+  translations: {
+    uz: { name: string; description?: string };
+    ru?: { name: string; description?: string };
+  };
+  head_teacher?: number | { id: number; full_name: string } | string | null;
+  subjects: string[] | null;
+  room_number: string | null;
+  phone: string | null;
+  email: string | null;
+  teachers_count?: number;
+  sort_order: number;
+  is_active: boolean;
+}
+
+interface DepartmentFormData {
   name_uz: string;
-  name_uz_cyrl?: string;
-  name_ru?: string;
-  name_en?: string;
+  name_ru: string;
   description_uz: string;
-  description_uz_cyrl?: string;
-  description_ru?: string;
-  description_en?: string;
-  head_teacher?: number | { id: number; full_name: string };
+  description_ru: string;
+  head_teacher: string;
   subjects: string[];
   room_number: string;
   phone: string;
@@ -31,6 +42,62 @@ interface Teacher {
   full_name: string;
 }
 
+function getDepartmentName(dept: Department): string {
+  return dept.translations?.uz?.name || dept.translations?.ru?.name || "";
+}
+
+function parseHeadTeacherId(value: Department["head_teacher"]): string {
+  if (!value) return "";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "object" && "id" in value) return String(value.id);
+  return "";
+}
+
+function getHeadTeacherName(dept: Department, teachers: Teacher[]): string {
+  if (typeof dept.head_teacher === "object" && dept.head_teacher && "full_name" in dept.head_teacher) {
+    return dept.head_teacher.full_name;
+  }
+  if (typeof dept.head_teacher === "number") {
+    return teachers.find((t) => t.id === dept.head_teacher)?.full_name || "Tayinlanmagan";
+  }
+  if (typeof dept.head_teacher === "string" && dept.head_teacher) {
+    return dept.head_teacher;
+  }
+  return "Tayinlanmagan";
+}
+
+function parseDepartmentToForm(dept: Department): DepartmentFormData {
+  return {
+    name_uz: dept.translations?.uz?.name || "",
+    name_ru: dept.translations?.ru?.name || "",
+    description_uz: dept.translations?.uz?.description || "",
+    description_ru: dept.translations?.ru?.description || "",
+    head_teacher: parseHeadTeacherId(dept.head_teacher),
+    subjects: dept.subjects || [],
+    room_number: dept.room_number || "",
+    phone: dept.phone || "",
+    email: dept.email || "",
+    sort_order: dept.sort_order ?? 0,
+    is_active: dept.is_active ?? true,
+  };
+}
+
+function buildDepartmentPayload(formData: DepartmentFormData) {
+  return {
+    name_uz: formData.name_uz.trim(),
+    name_ru: formData.name_ru.trim(),
+    description_uz: formData.description_uz.trim() || null,
+    description_ru: formData.description_ru.trim() || null,
+    head_teacher: formData.head_teacher ? Number(formData.head_teacher) : null,
+    subjects: formData.subjects,
+    room_number: formData.room_number.trim() || null,
+    phone: formData.phone.trim() || null,
+    email: formData.email.trim() || null,
+    sort_order: formData.sort_order || 0,
+    is_active: formData.is_active,
+  };
+}
+
 export default function Kafedralar() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -42,12 +109,12 @@ export default function Kafedralar() {
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
   const [subjectInput, setSubjectInput] = useState("");
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DepartmentFormData>({
     name_uz: "",
     name_ru: "",
     description_uz: "",
     description_ru: "",
-    head_teacher: "" as string | number,
+    head_teacher: "",
     subjects: [] as string[],
     room_number: "",
     phone: "",
@@ -71,24 +138,28 @@ export default function Kafedralar() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("auth_token");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const [deptRes, teacherRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/departments`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/teachers`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetch(DEPARTMENTS_URL, { headers }),
+        fetch(TEACHERS_URL, { headers }),
       ]);
 
       if (deptRes.ok) {
         const data = await deptRes.json();
-        setDepartments(Array.isArray(data) ? data : data.results || []);
+        setDepartments(parseListResponse<Department>(data));
+      } else {
+        toast.error("Kafedralarni yuklashda xatolik");
       }
+
       if (teacherRes.ok) {
         const data = await teacherRes.json();
-        setTeachers(Array.isArray(data) ? data : data.results || []);
+        setTeachers(parseListResponse<Teacher>(data));
       }
-    } catch (error) {
+    } catch {
       toast.error("Ma'lumotlarni yuklashda xatolik");
     } finally {
       setLoading(false);
@@ -96,11 +167,12 @@ export default function Kafedralar() {
   };
 
   const filteredDepartments = departments.filter((d) =>
-    (d.name_uz || "").toLowerCase().includes(searchQuery.toLowerCase())
+    getDepartmentName(d).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAdd = () => {
     setEditingDept(null);
+    setActiveTab("uz");
     setFormData({
       name_uz: "",
       name_ru: "",
@@ -118,39 +190,53 @@ export default function Kafedralar() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (dept: Department) => {
+  const handleEdit = async (dept: Department) => {
     setEditingDept(dept);
-    setFormData({
-      name_uz: dept.name_uz || "",
-      name_ru: dept.name_ru || "",
-      description_uz: dept.description_uz || "",
-      description_ru: dept.description_ru || "",
-      head_teacher: typeof dept.head_teacher === 'object' ? dept.head_teacher.id : dept.head_teacher || "",
-      subjects: dept.subjects || [],
-      room_number: dept.room_number || "",
-      phone: dept.phone || "",
-      email: dept.email || "",
-      sort_order: dept.sort_order || 0,
-      is_active: dept.is_active,
-    });
-    setSubjectInput("");
+    setActiveTab("uz");
     setIsModalOpen(true);
+
+    const token = sessionStorage.getItem("auth_token");
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${DEPARTMENTS_URL}${dept.slug}/`, { headers });
+      if (response.ok) {
+        const data: Department = await response.json();
+        setEditingDept(data);
+        setFormData(parseDepartmentToForm(data));
+      } else {
+        setFormData(parseDepartmentToForm(dept));
+      }
+    } catch {
+      setFormData(parseDepartmentToForm(dept));
+    }
+    setSubjectInput("");
   };
 
   const handleDelete = async (slug: string) => {
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
     try {
-      const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/departments/${slug}`, {
+      const response = await fetch(`${DEPARTMENTS_URL}${slug}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("Kafedra o'chirildi");
         fetchData();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
         toast.error("O'chirishda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Server xatosi");
     }
   };
@@ -174,18 +260,26 @@ export default function Kafedralar() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+
+    if (!formData.name_uz.trim() && !formData.name_ru.trim()) {
+      toast.error("Kamida bitta tildagi kafedra nomi kiritilishi kerak");
+      setActiveTab("uz");
+      return;
+    }
 
     const token = sessionStorage.getItem("auth_token");
-    const payload = {
-      ...formData,
-      head_teacher: formData.head_teacher === "" ? null : Number(formData.head_teacher),
-    };
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const payload = buildDepartmentPayload(formData);
 
     try {
       const url = editingDept
-        ? `${API_BASE_URL}/departments/${editingDept.slug}`
-        : `${API_BASE_URL}/departments`;
+        ? `${DEPARTMENTS_URL}${editingDept.slug}/`
+        : DEPARTMENTS_URL;
       const method = editingDept ? "PATCH" : "POST";
 
       const response = await fetch(url, {
@@ -201,11 +295,18 @@ export default function Kafedralar() {
         toast.success(editingDept ? "Kafedra tahrirlandi" : "Kafedra qo'shildi");
         setIsModalOpen(false);
         fetchData();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
       } else {
-        const errData = await response.json();
-        toast.error(errData.detail || "Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubmitting(false);
@@ -295,7 +396,7 @@ export default function Kafedralar() {
               </div>
               <div className="min-w-0">
                 <h3 className="font-bold text-[#1f2937] dark:text-gray-100 text-lg truncate">
-                  {dept.name_uz}
+                  {getDepartmentName(dept)}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`w-2 h-2 rounded-full ${dept.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -308,7 +409,7 @@ export default function Kafedralar() {
               <div className="flex items-start gap-3 text-sm text-gray-500 dark:text-gray-400">
                 <Users className="w-4 h-4 mt-0.5 shrink-0 text-[#0d89b1]" />
                 <span className="font-medium">
-                  Mudiri: {typeof dept.head_teacher === 'object' ? dept.head_teacher.full_name : 'Tayinlanmagan'}
+                  Mudiri: {getHeadTeacherName(dept, teachers)}
                 </span>
               </div>
               <div className="flex items-start gap-3 text-sm text-gray-500 dark:text-gray-400">
@@ -327,9 +428,9 @@ export default function Kafedralar() {
                   {sub}
                 </span>
               ))}
-              {dept.subjects?.length > 3 && (
+              {(dept.subjects?.length ?? 0) > 3 && (
                 <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[10px] font-bold rounded-lg">
-                  +{dept.subjects.length - 3}
+                  +{(dept.subjects?.length ?? 0) - 3}
                 </span>
               )}
             </div>
@@ -449,7 +550,7 @@ export default function Kafedralar() {
                       </select>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Xona raqami</label>
                         <input
@@ -458,6 +559,21 @@ export default function Kafedralar() {
                           onChange={(e) => setFormData({ ...formData, room_number: e.target.value })}
                           className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all"
                           placeholder="Masalan: 201"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tartib raqami</label>
+                        <input
+                          type="text"
+                          value={formData.sort_order}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "" || /^\d+$/.test(val)) {
+                              setFormData({ ...formData, sort_order: val === "" ? 0 : Number(val) });
+                            }
+                          }}
+                          className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all"
+                          placeholder="0"
                         />
                       </div>
                     </div>

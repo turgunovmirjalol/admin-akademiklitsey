@@ -3,11 +3,10 @@ import { useState, useEffect } from "react";
 import { Plus, Search, Edit, Trash2, X, AlertCircle, Loader2 } from "lucide-react";
 import { Dialog } from "../components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../components/ui/alert-dialog";
-import { Switch } from "../components/ui/switch";
 import { toast } from "sonner";
 import { ImageUpload } from "../components/ImageUpload";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
-import { API_BASE_URL, getImageUrl } from "../../config/api";
+import { ANNOUNCEMENTS_URL, getImageUrl, parseApiErrors, parseListResponse, toDateInputValue, toIsoDateTime } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { SEO } from "../components/SEO";
 
@@ -22,16 +21,72 @@ interface Announcement {
   slug: string;
   translations: {
     uz: AnnouncementTranslation;
-    uz_cyrl: AnnouncementTranslation;
-    ru: AnnouncementTranslation;
+    ru?: AnnouncementTranslation;
   };
-  image: string;
+  image: string | null;
   status: "draft" | "published" | "archived";
   status_display: string;
   is_important: boolean;
   expires_at: string | null;
-  published_at: string;
+  published_at: string | null;
   created_at: string;
+}
+
+interface AnnouncementFormData {
+  status: string;
+  is_important: boolean;
+  published_at: string;
+  expires_at: string;
+  title_uz: string;
+  title_ru: string;
+  short_description_uz: string;
+  short_description_ru: string;
+  content_uz: string;
+  content_ru: string;
+  image: File | string | null;
+}
+
+function parseAnnouncementToForm(item: Announcement): AnnouncementFormData {
+  return {
+    status: item.status || "draft",
+    is_important: item.is_important ?? false,
+    published_at: toDateInputValue(item.published_at) || new Date().toISOString().split("T")[0],
+    expires_at: toDateInputValue(item.expires_at),
+    title_uz: item.translations?.uz?.title || "",
+    title_ru: item.translations?.ru?.title || "",
+    short_description_uz: item.translations?.uz?.short_description || "",
+    short_description_ru: item.translations?.ru?.short_description || "",
+    content_uz: item.translations?.uz?.content || "",
+    content_ru: item.translations?.ru?.content || "",
+    image: item.image ? getImageUrl(item.image) : null,
+  };
+}
+
+function buildAnnouncementFormData(formData: AnnouncementFormData): FormData {
+  const data = new FormData();
+
+  data.append("status", formData.status || "draft");
+  data.append("is_important", formData.is_important ? "true" : "false");
+
+  if (formData.published_at) {
+    data.append("published_at", toIsoDateTime(formData.published_at));
+  }
+  if (formData.expires_at) {
+    data.append("expires_at", toIsoDateTime(formData.expires_at));
+  }
+
+  data.append("title_uz", formData.title_uz.trim());
+  data.append("title_ru", formData.title_ru.trim());
+  data.append("short_description_uz", formData.short_description_uz.trim());
+  data.append("short_description_ru", formData.short_description_ru.trim());
+  data.append("content_uz", formData.content_uz.trim());
+  data.append("content_ru", formData.content_ru.trim());
+
+  if (formData.image instanceof File) {
+    data.append("image", formData.image);
+  }
+
+  return data;
 }
 
 export default function Elonlar() {
@@ -41,10 +96,9 @@ export default function Elonlar() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Announcement | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AnnouncementFormData>({
     status: "draft",
     is_important: false,
     published_at: new Date().toISOString().split("T")[0],
@@ -71,19 +125,22 @@ export default function Elonlar() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/announcements`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(ANNOUNCEMENTS_URL, { headers });
       const data = await response.json();
       if (response.ok) {
-        setAnnouncements(Array.isArray(data) ? data : data.results || []);
+        setAnnouncements(parseListResponse<Announcement>(data));
       } else {
         toast.error("E'lonlarni yuklashda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -95,6 +152,7 @@ export default function Elonlar() {
 
   const handleAdd = () => {
     setEditingItem(null);
+    setActiveTab("uz");
     setFormData({
       status: "draft",
       is_important: false,
@@ -111,122 +169,103 @@ export default function Elonlar() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (item: Announcement) => {
+  const handleEdit = async (item: Announcement) => {
     setEditingItem(item);
-    setFormData({
-      status: item.status,
-      is_important: item.is_important,
-      published_at: item.published_at ? item.published_at.split("T")[0] : new Date().toISOString().split("T")[0],
-      expires_at: item.expires_at ? item.expires_at.split("T")[0] : "",
-      title_uz: item.translations?.uz?.title || "",
-      title_ru: item.translations?.ru?.title || "",
-      short_description_uz: item.translations?.uz?.short_description || "",
-      short_description_ru: item.translations?.ru?.short_description || "",
-      content_uz: item.translations?.uz?.content || "",
-      content_ru: item.translations?.ru?.content || "",
-      image: getImageUrl(item.image),
-    });
+    setActiveTab("uz");
     setIsModalOpen(true);
+
+    const token = sessionStorage.getItem("auth_token");
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${ANNOUNCEMENTS_URL}${item.slug}/`, { headers });
+      if (response.ok) {
+        const data: Announcement = await response.json();
+        setEditingItem(data);
+        setFormData(parseAnnouncementToForm(data));
+      } else {
+        setFormData(parseAnnouncementToForm(item));
+      }
+    } catch {
+      setFormData(parseAnnouncementToForm(item));
+    }
   };
 
   const handleDelete = async (slug: string) => {
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
     try {
-      const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/announcements/${slug}`, {
+      const response = await fetch(`${ANNOUNCEMENTS_URL}${slug}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("E'lon o'chirildi");
         fetchAnnouncements();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
         toast.error("O'chirishda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setUploadProgress(0);
+
+    if (!formData.title_uz.trim() && !formData.title_ru.trim()) {
+      toast.error("Kamida bitta tildagi sarlavha kiritilishi kerak");
+      setActiveTab("uz");
+      return;
+    }
 
     const token = sessionStorage.getItem("auth_token");
-    const data = new FormData();
-
-    data.append("status", formData.status);
-    data.append("is_important", formData.is_important ? "true" : "false");
-    
-    const publishedAt = new Date(formData.published_at);
-    if (!isNaN(publishedAt.getTime())) {
-      data.append("published_at", publishedAt.toISOString());
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
+      return;
     }
 
-    if (formData.expires_at) {
-      const expiresAt = new Date(formData.expires_at);
-      if (!isNaN(expiresAt.getTime())) {
-        data.append("expires_at", expiresAt.toISOString());
-      }
-    }
-
-    if (formData.title_uz) data.append("title_uz", formData.title_uz);
-    if (formData.title_ru) data.append("title_ru", formData.title_ru);
-    
-    if (formData.short_description_uz) data.append("short_description_uz", formData.short_description_uz);
-    if (formData.short_description_ru) data.append("short_description_ru", formData.short_description_ru);
-    
-    if (formData.content_uz) data.append("content_uz", formData.content_uz);
-    if (formData.content_ru) data.append("content_ru", formData.content_ru);
-
-    if (formData.image instanceof File) {
-      data.append("image", formData.image);
-    }
-
-    const uploadWithXHR = () => {
-      return new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        
-        xhr.upload.addEventListener("progress", (event) => {
-          if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100);
-            setUploadProgress(progress);
-          }
-        });
-
-        xhr.addEventListener("load", () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            const errorData = JSON.parse(xhr.responseText || "{}");
-            reject(new Error(errorData.detail || "Server xatosi"));
-          }
-        });
-
-        xhr.addEventListener("error", () => reject(new Error("Tarmoq xatosi")));
-
-        const url = editingItem
-          ? `${API_BASE_URL}/announcements/${editingItem.slug}/`
-          : `${API_BASE_URL}/announcements/`;
-        const method = editingItem ? "PATCH" : "POST";
-
-        xhr.open(method, url);
-        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        xhr.send(data);
-      });
-    };
+    setIsSubmitting(true);
+    const data = buildAnnouncementFormData(formData);
 
     try {
-      await uploadWithXHR();
-      setUploadProgress(100);
-      toast.success(editingItem ? "E'lon tahrirlandi" : "E'lon qo'shildi");
-      setTimeout(() => {
+      const url = editingItem
+        ? `${ANNOUNCEMENTS_URL}${editingItem.slug}/`
+        : ANNOUNCEMENTS_URL;
+      const method = editingItem ? "PATCH" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+        body: data,
+      });
+
+      if (response.ok) {
+        toast.success(editingItem ? "E'lon tahrirlandi" : "E'lon qo'shildi");
         setIsModalOpen(false);
-        setUploadProgress(0);
-      }, 500);
-      fetchAnnouncements();
-    } catch (error: any) {
-      toast.error(error.message || "Server bilan bog'lanishda xatolik");
+        fetchAnnouncements();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
+      } else {
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
+      }
+    } catch {
+      toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubmitting(false);
     }
@@ -544,10 +583,14 @@ export default function Elonlar() {
                   <ImageUpload
                     label="Asosiy rasm"
                     value={formData.image}
-                    onChange={(file) => setFormData({ ...formData, image: file as File })}
+                    onChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        image: Array.isArray(value) ? value[0] ?? null : value,
+                      })
+                    }
                     placeholder="E'lon rasmini yuklash uchun bosing"
                     isUploading={isSubmitting}
-                    uploadProgress={uploadProgress}
                   />
                 </div>
 

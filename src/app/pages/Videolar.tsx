@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Plus, Search, Edit, Trash2, X, Loader2, Film, Save, Play, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
-import { API_BASE_URL, getImageUrl } from "../../config/api";
+import { VIDEOS_URL, getImageUrl, parseApiErrors, parseListResponse } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { VideoUpload, ImageUpload } from "../components/ImageUpload";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
@@ -24,9 +24,7 @@ interface VideoItem {
   id: number;
   translations: {
     uz: { title: string; description: string };
-    ru: { title: string; description: string };
-    en: { title: string; description: string };
-    uz_cyrl: { title: string; description: string };
+    ru?: { title: string; description: string };
   };
   video_file: string;
   thumbnail?: string;
@@ -42,18 +40,14 @@ export default function Videolar() {
   const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"uz" | "ru" | "en" | "uz_cyrl">("uz");
+  const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     title_uz: "",
     title_ru: "",
-    title_en: "",
-    title_uz_cyrl: "",
     description_uz: "",
     description_ru: "",
-    description_en: "",
-    description_uz_cyrl: "",
     is_active: true,
     sort_order: 0,
     video_file: null as File | string | null,
@@ -62,9 +56,7 @@ export default function Videolar() {
 
   const languages = [
     { id: "uz", label: "O'zbekcha" },
-    { id: "uz_cyrl", label: "Kirillcha" },
     { id: "ru", label: "Русский" },
-    { id: "en", label: "English" },
   ] as const;
 
   useEffect(() => {
@@ -79,16 +71,16 @@ export default function Videolar() {
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const response = await fetch(`${API_BASE_URL}/videos/`, { headers });
+      const response = await fetch(VIDEOS_URL, { headers });
       if (response.ok) {
         const data = await response.json();
-        const list = (Array.isArray(data) ? data : data.results || [])
-          .map((v: VideoItem) => ({
+        const list = parseListResponse<VideoItem>(data)
+          .map((v) => ({
             ...v,
             video_file: getImageUrl(v.video_file),
             thumbnail: v.thumbnail ? getImageUrl(v.thumbnail) : undefined,
           }))
-          .sort((a: VideoItem, b: VideoItem) => (a.sort_order || 0) - (b.sort_order || 0));
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
         setVideos(list);
       }
     } catch {
@@ -107,12 +99,8 @@ export default function Videolar() {
     setFormData({
       title_uz: "",
       title_ru: "",
-      title_en: "",
-      title_uz_cyrl: "",
       description_uz: "",
       description_ru: "",
-      description_en: "",
-      description_uz_cyrl: "",
       is_active: true,
       sort_order: videos.length,
       video_file: null,
@@ -122,43 +110,65 @@ export default function Videolar() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (video: VideoItem) => {
-    setEditingVideo(video);
-    setFormData({
-      title_uz: video.translations.uz.title || "",
-      title_ru: video.translations.ru.title || "",
-      title_en: video.translations.en.title || "",
-      title_uz_cyrl: video.translations.uz_cyrl.title || "",
-      description_uz: video.translations.uz.description || "",
-      description_ru: video.translations.ru.description || "",
-      description_en: video.translations.en.description || "",
-      description_uz_cyrl: video.translations.uz_cyrl.description || "",
-      is_active: video.is_active !== false,
-      sort_order: video.sort_order || 0,
-      video_file: video.video_file || null,
-      thumbnail: video.thumbnail || null,
-    });
-    setUploadProgress(null);
-    setIsModalOpen(true);
+  const handleEdit = async (video: VideoItem) => {
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${VIDEOS_URL}${video.id}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        toast.error("Video ma'lumotlarini yuklashda xatolik");
+        return;
+      }
+
+      const data: VideoItem = await response.json();
+      setEditingVideo(data);
+      setFormData({
+        title_uz: data.translations?.uz?.title || "",
+        title_ru: data.translations?.ru?.title || "",
+        description_uz: data.translations?.uz?.description || "",
+        description_ru: data.translations?.ru?.description || "",
+        is_active: data.is_active !== false,
+        sort_order: data.sort_order || 0,
+        video_file: data.video_file ? getImageUrl(data.video_file) : null,
+        thumbnail: data.thumbnail ? getImageUrl(data.thumbnail) : null,
+      });
+      setUploadProgress(null);
+      setIsModalOpen(true);
+    } catch {
+      toast.error("Server bilan bog'lanishda xatolik");
+    }
   };
 
   const handleDelete = async (id: number) => {
     try {
       const token = sessionStorage.getItem("auth_token");
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+      if (!token) {
+        toast.error("Avtorizatsiya talab qilinadi");
+        return;
       }
-      const response = await fetch(`${API_BASE_URL}/videos/${id}/`, {
+      const response = await fetch(`${VIDEOS_URL}${id}/`, {
         method: "DELETE",
-        headers,
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("Video o'chirildi");
         fetchVideos();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
-        const errData = await response.json().catch(() => ({}));
-        toast.error(errData.detail || "O'chirishda xatolik");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
     } catch {
       toast.error("Server bilan bog'lanishda xatolik");
@@ -182,18 +192,16 @@ export default function Videolar() {
     setUploadProgress(0);
 
     const token = sessionStorage.getItem("auth_token");
-    const data = new FormData();
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
 
-    // Faqat edit rejimida o'zgargan maydonlarni yuborish yaxshi, 
-    // lekin rasmdagi PATCH doc barcha maydonlarni ko'rsatmoqda.
+    const data = new FormData();
     data.append("title_uz", formData.title_uz);
-    data.append("title_ru", formData.title_ru || " ");
-    data.append("title_en", formData.title_en || " ");
-    data.append("title_uz_cyrl", formData.title_uz_cyrl || " ");
-    data.append("description_uz", formData.description_uz || " ");
-    data.append("description_ru", formData.description_ru || " ");
-    data.append("description_en", formData.description_en || " ");
-    data.append("description_uz_cyrl", formData.description_uz_cyrl || " ");
+    data.append("title_ru", formData.title_ru);
+    data.append("description_uz", formData.description_uz);
+    data.append("description_ru", formData.description_ru);
     data.append("is_active", formData.is_active ? "true" : "false");
     data.append("sort_order", String(formData.sort_order));
 
@@ -204,18 +212,14 @@ export default function Videolar() {
       data.append("thumbnail", formData.thumbnail);
     }
 
-    const url = editingVideo
-      ? `${API_BASE_URL}/videos/${editingVideo.id}/`
-      : `${API_BASE_URL}/videos/`;
+    const url = editingVideo ? `${VIDEOS_URL}${editingVideo.id}/` : VIDEOS_URL;
     const method = editingVideo ? "PATCH" : "POST";
 
     try {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open(method, url);
-        if (token) {
-          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        }
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
             const percent = Math.round((event.loaded / event.total) * 100);
@@ -229,7 +233,7 @@ export default function Videolar() {
             } else {
               try {
                 const errorData = JSON.parse(xhr.responseText || "{}");
-                reject(new Error(errorData.detail || "Yuklashda xatolik"));
+                reject(new Error(parseApiErrors(errorData)));
               } catch {
                 reject(new Error("Server xatosi"));
               }
@@ -457,6 +461,19 @@ export default function Videolar() {
                   <label htmlFor="is_active_video" className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
                     Faol holatda (Saytda ko'rinadi)
                   </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Tartib raqami
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.sort_order}
+                    onChange={(e) => setFormData({ ...formData, sort_order: Number(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-[#0d89b1]/20 focus:border-[#0d89b1]"
+                  />
                 </div>
               </div>
 

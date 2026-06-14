@@ -6,7 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { ImageUpload } from "../components/ImageUpload";
 import { toast } from "sonner";
-import { API_BASE_URL, getImageUrl } from "../../config/api";
+import { MANAGEMENT_URL, getImageUrl, parseApiErrors, parseListResponse } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { SEO } from "../components/SEO";
 
@@ -18,18 +18,74 @@ interface ManagementTranslation {
 
 interface Leader {
   id: number;
-  slug: string;
   full_name: string;
-  academic_degree: string;
-  phone: string;
-  email: string;
-  photo: string;
+  academic_degree: string | null;
+  phone: string | null;
+  email: string | null;
+  photo: string | null;
   sort_order: number;
   is_active: boolean;
   translations: {
     uz: ManagementTranslation;
-    ru: ManagementTranslation;
+    ru?: ManagementTranslation;
   };
+}
+
+interface LeaderFormData {
+  full_name: string;
+  academic_degree: string;
+  phone: string;
+  email: string;
+  sort_order: number;
+  is_active: boolean;
+  position_uz: string;
+  position_ru: string;
+  bio_uz: string;
+  bio_ru: string;
+  reception_hours_uz: string;
+  reception_hours_ru: string;
+  photo: File | string | null;
+}
+
+function parseLeaderToForm(leader: Leader): LeaderFormData {
+  return {
+    full_name: leader.full_name || "",
+    academic_degree: leader.academic_degree || "",
+    phone: leader.phone || "",
+    email: leader.email || "",
+    sort_order: leader.sort_order ?? 0,
+    is_active: leader.is_active ?? true,
+    position_uz: leader.translations?.uz?.position || "",
+    position_ru: leader.translations?.ru?.position || "",
+    bio_uz: leader.translations?.uz?.bio || "",
+    bio_ru: leader.translations?.ru?.bio || "",
+    reception_hours_uz: leader.translations?.uz?.reception_hours || "",
+    reception_hours_ru: leader.translations?.ru?.reception_hours || "",
+    photo: leader.photo ? getImageUrl(leader.photo) : null,
+  };
+}
+
+function buildLeaderFormData(formData: LeaderFormData): FormData {
+  const data = new FormData();
+
+  data.append("full_name", formData.full_name.trim());
+  data.append("academic_degree", formData.academic_degree.trim());
+  data.append("phone", formData.phone.trim());
+  data.append("email", formData.email.trim());
+  data.append("sort_order", String(formData.sort_order || 0));
+  data.append("is_active", formData.is_active ? "true" : "false");
+  data.append("position_uz", formData.position_uz.trim());
+  data.append("position_ru", formData.position_ru.trim());
+  data.append("bio_uz", formData.bio_uz.trim());
+  data.append("bio_ru", formData.bio_ru.trim());
+  data.append("reception_hours_uz", formData.reception_hours_uz.trim());
+  data.append("reception_hours_ru", formData.reception_hours_ru.trim());
+
+  if (formData.photo instanceof File) {
+    data.append("photo", formData.photo);
+  }
+
+  return data;
 }
 
 export default function Rahbariyat() {
@@ -40,7 +96,7 @@ export default function Rahbariyat() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<LeaderFormData>({
     full_name: "",
     academic_degree: "",
     phone: "",
@@ -69,16 +125,19 @@ export default function Rahbariyat() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/management`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(MANAGEMENT_URL, { headers });
       const data = await response.json();
       if (response.ok) {
-        setLeaders(Array.isArray(data) ? data : data.results || []);
+        setLeaders(parseListResponse<Leader>(data));
       } else {
         toast.error("Rahbariyat ma'lumotlarini yuklashda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setLoading(false);
@@ -87,12 +146,13 @@ export default function Rahbariyat() {
 
   const handleAdd = () => {
     setEditingLeader(null);
+    setActiveTab("uz");
     setFormData({
       full_name: "",
       academic_degree: "",
       phone: "",
       email: "",
-      sort_order: 0,
+      sort_order: leaders.length,
       is_active: true,
       position_uz: "",
       position_ru: "",
@@ -105,81 +165,83 @@ export default function Rahbariyat() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (leader: Leader) => {
+  const handleEdit = async (leader: Leader) => {
     setEditingLeader(leader);
-    setFormData({
-      full_name: leader.full_name || "",
-      academic_degree: leader.academic_degree || "",
-      phone: leader.phone || "",
-      email: leader.email || "",
-      sort_order: leader.sort_order || 0,
-      is_active: !!leader.is_active,
-      position_uz: leader.translations?.uz?.position || "",
-      position_ru: leader.translations?.ru?.position || "",
-      bio_uz: leader.translations?.uz?.bio || "",
-      bio_ru: leader.translations?.ru?.bio || "",
-      reception_hours_uz: leader.translations?.uz?.reception_hours || "",
-      reception_hours_ru: leader.translations?.ru?.reception_hours || "",
-      photo: leader.photo ? getImageUrl(leader.photo) : null,
-    });
+    setActiveTab("uz");
     setIsModalOpen(true);
+
+    const token = sessionStorage.getItem("auth_token");
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${MANAGEMENT_URL}${leader.id}/`, { headers });
+      if (response.ok) {
+        const data: Leader = await response.json();
+        setEditingLeader(data);
+        setFormData(parseLeaderToForm(data));
+      } else {
+        setFormData(parseLeaderToForm(leader));
+      }
+    } catch {
+      setFormData(parseLeaderToForm(leader));
+    }
   };
 
   const handleDelete = async (id: number) => {
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
     try {
-      const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/management/${id}`, {
+      const response = await fetch(`${MANAGEMENT_URL}${id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("Muvaffaqiyatli o'chirildi");
         fetchLeaders();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
         toast.error("O'chirishda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.full_name || !formData.position_uz) {
-      toast.error("Iltimos, barcha majburiy maydonlarni to'ldiring (Ism va Lavozim)");
+
+    if (!formData.full_name.trim()) {
+      toast.error("To'liq ism majburiy");
+      return;
+    }
+
+    if (!formData.position_uz.trim() && !formData.position_ru.trim()) {
+      toast.error("Kamida bitta tildagi lavozim kiritilishi kerak");
+      setActiveTab("uz");
+      return;
+    }
+
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
       return;
     }
 
     setIsSubmitting(true);
-
-    const token = sessionStorage.getItem("auth_token");
-    const data = new FormData();
-
-    // Base fields
-    data.append("full_name", formData.full_name);
-    data.append("academic_degree", formData.academic_degree || "");
-    data.append("phone", formData.phone || "");
-    data.append("email", formData.email || "");
-    data.append("sort_order", String(formData.sort_order || 0));
-    data.append("is_active", formData.is_active ? "true" : "false");
-    
-    // Translation fields - always append to ensure they exist
-    data.append("position_uz", formData.position_uz);
-    data.append("position_ru", formData.position_ru || "");
-    data.append("bio_uz", formData.bio_uz || "");
-    data.append("bio_ru", formData.bio_ru || "");
-    data.append("reception_hours_uz", formData.reception_hours_uz || "");
-    data.append("reception_hours_ru", formData.reception_hours_ru || "");
-
-    if (formData.photo instanceof File) {
-      data.append("photo", formData.photo);
-    }
+    const data = buildLeaderFormData(formData);
 
     try {
       const url = editingLeader
-        ? `${API_BASE_URL}/management/${editingLeader.id}`
-        : `${API_BASE_URL}/management`;
+        ? `${MANAGEMENT_URL}${editingLeader.id}/`
+        : MANAGEMENT_URL;
       const method = editingLeader ? "PATCH" : "POST";
 
       const response = await fetch(url, {
@@ -192,25 +254,19 @@ export default function Rahbariyat() {
         toast.success(editingLeader ? "Muvaffaqiyatli tahrirlandi" : "Muvaffaqiyatli qo'shildi");
         setIsModalOpen(false);
         fetchLeaders();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
       } else {
-        const errData = await response.json();
-        if (errData && typeof errData === 'object') {
-          // Extract error messages from all fields
-          const errorMessages = Object.entries(errData)
-            .map(([field, msgs]) => {
-              const message = Array.isArray(msgs) ? msgs.join(', ') : msgs;
-              return `${field}: ${message}`;
-            })
-            .join('\n');
-          toast.error(errorMessages || "Xatolik yuz berdi");
-          console.error("API Error Details:", errData);
-        } else {
-          toast.error("Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
         }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
-      console.error("Submit error:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -382,7 +438,12 @@ export default function Rahbariyat() {
                       <ImageUpload
                         label="Fotosurat"
                         value={formData.photo}
-                        onChange={(file) => setFormData({ ...formData, photo: file as File })}
+                        onChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            photo: Array.isArray(value) ? value[0] ?? null : value,
+                          })
+                        }
                         placeholder="Rasm yuklash"
                         isUploading={isSubmitting}
                       />
@@ -398,6 +459,35 @@ export default function Rahbariyat() {
                             className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
                             required
                             placeholder="F.I.Sh."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                            Ilmiy daraja
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.academic_degree}
+                            onChange={(e) => setFormData({ ...formData, academic_degree: e.target.value })}
+                            className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
+                            placeholder="Masalan: Fan doktori"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                            Tartib raqami
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.sort_order}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "" || /^\d+$/.test(val)) {
+                                setFormData({ ...formData, sort_order: val === "" ? 0 : Number(val) });
+                              }
+                            }}
+                            className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
+                            placeholder="0"
                           />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

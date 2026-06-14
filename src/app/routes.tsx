@@ -8,6 +8,7 @@ import Rahbariyat from "./pages/Rahbariyat";
 import Qabul from "./pages/Qabul";
 import Sozlamalar from "./pages/Sozlamalar";
 import DarsJadvali from "./pages/DarsJadvali";
+import Fanlar from "./pages/Fanlar";
 import Kafedralar from "./pages/Kafedralar";
 import Savollar from "./pages/Savollar";
 import Galereya from "./pages/Galereya";
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: "qabul", Component: Qabul },
       { path: "sozlamalar", Component: Sozlamalar },
       { path: "dars-jadvali", Component: DarsJadvali },
+      { path: "fanlar", Component: Fanlar },
     ],
   },
 ]);

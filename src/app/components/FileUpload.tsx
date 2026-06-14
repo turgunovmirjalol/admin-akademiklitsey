@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Upload, X, FileVideo, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, X, FileVideo, AlertCircle, Loader2 } from "lucide-react";
 
 interface FileUploadProps {
   value: string | File | File[] | null;
@@ -24,7 +24,6 @@ export function FileUpload({
   isVideo = false,
   multiple = false,
   isUploading: externalIsUploading,
-  uploadProgress: externalUploadProgress,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -32,7 +31,6 @@ export function FileUpload({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isUploading = externalIsUploading || false;
-  const uploadProgress = externalUploadProgress || 0;
 
   useEffect(() => {
     const loadPreviews = async () => {
@@ -188,28 +186,6 @@ export function FileUpload({
     </div>
   );
 
-  const renderProgressBar = () => (
-    <div className="mt-4 space-y-2">
-      <div className="flex justify-between items-center text-xs">
-        <span className="text-[#64748b] dark:text-gray-400">
-          {uploadProgress < 100 ? "Yuklanmoqda..." : "Tugallandi"}
-        </span>
-        <span className="font-bold text-[#0d89b1]">{uploadProgress}%</span>
-      </div>
-      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-300 ease-out"
-          style={{
-            width: `${uploadProgress}%`,
-            background: uploadProgress === 100
-              ? "linear-gradient(90deg, #10b981, #059669)"
-              : "linear-gradient(90deg, #0d89b1, #0a6d8f)",
-          }}
-        />
-      </div>
-    </div>
-  );
-
   return (
     <div className="space-y-3">
       <label className="block text-sm font-medium text-[#1f2937] dark:text-gray-200">{label}</label>
@@ -221,26 +197,13 @@ export function FileUpload({
         </div>
       )}
 
-      {isUploading && (
-        <div className="p-6 bg-[#0d89b1]/5 dark:bg-[#0d89b1]/10 border border-[#0d89b1]/20 rounded-xl space-y-3">
-          <div className="flex items-center gap-3">
-            {isVideo ? (
-              <FileVideo className="w-8 h-8 text-purple-500 animate-pulse" />
-            ) : (
-              <Upload className="w-8 h-8 text-[#0d89b1] animate-pulse" />
-            )}
-            <div>
-              <p className="text-sm font-bold text-[#0d89b1]">Fayl yuklanmoqda...</p>
-              <p className="text-xs text-[#0d89b1]/70">
-                {isVideo ? "Video tayyorlanmoqda, kuting" : "Rasm yuklanmoqda, kuting"}
-              </p>
-            </div>
-          </div>
-          {renderProgressBar()}
+      {isUploading && previews.length === 0 && (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-8 h-8 text-[#0d89b1] animate-spin" />
         </div>
       )}
 
-      {previews.length > 0 && !isUploading ? (
+      {previews.length > 0 ? (
         <div className={multiple ? "grid grid-cols-2 gap-2" : "relative"}>
           {previews.map((preview, index) => (
             <div key={index} className="relative">
@@ -257,13 +220,20 @@ export function FileUpload({
                   className="w-full h-32 object-contain bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-colors"
                 />
               )}
-              <button
-                type="button"
-                onClick={() => handleRemove(index)}
-                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              {isUploading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+                  <Loader2 className="w-8 h-8 text-white animate-spin" />
+                </div>
+              )}
+              {!isUploading && (
+                <button
+                  type="button"
+                  onClick={() => handleRemove(index)}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>

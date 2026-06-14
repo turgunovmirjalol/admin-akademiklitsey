@@ -2,8 +2,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Plus, Search, Edit, Trash2, X, Loader2, HelpCircle, Save, Star } from "lucide-react";
 import { toast } from "sonner";
-import { API_BASE_URL } from "../../config/api";
-import { Skeleton } from "../components/ui/skeleton";
+import { FAQ_URL, parseApiErrors, parseListResponse } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import {
   AlertDialog,
@@ -18,25 +17,60 @@ import {
 
 interface FAQ {
   id: number;
-  category: "admission" | "general" | "education" | "payment";
+  category: string;
   category_display?: string;
   is_featured: boolean;
   sort_order: number;
   is_active: boolean;
-  question_uz: string;
-  question_ru?: string;
-  question_en?: string;
-  question_uz_cyrl?: string;
-  answer_uz: string;
-  answer_ru?: string;
-  answer_en?: string;
-  answer_uz_cyrl?: string;
-  translations?: {
-    uz?: { question?: string; answer?: string };
-    ru?: { question?: string; answer?: string };
-    en?: { question?: string; answer?: string };
-    uz_cyrl?: { question?: string; answer?: string };
+  translations: {
+    uz: { question: string; answer: string };
+    ru?: { question: string; answer: string };
   };
+}
+
+interface FaqFormData {
+  category: string;
+  is_featured: boolean;
+  sort_order: number;
+  is_active: boolean;
+  question_uz: string;
+  question_ru: string;
+  answer_uz: string;
+  answer_ru: string;
+}
+
+function parseFaqToForm(faq: FAQ): FaqFormData {
+  return {
+    category: faq.category || "general",
+    is_featured: faq.is_featured ?? false,
+    sort_order: faq.sort_order ?? 0,
+    is_active: faq.is_active ?? true,
+    question_uz: faq.translations?.uz?.question || "",
+    question_ru: faq.translations?.ru?.question || "",
+    answer_uz: faq.translations?.uz?.answer || "",
+    answer_ru: faq.translations?.ru?.answer || "",
+  };
+}
+
+function buildFaqFormData(formData: FaqFormData): FormData {
+  const data = new FormData();
+  data.append("category", formData.category || "general");
+  data.append("is_featured", formData.is_featured ? "true" : "false");
+  data.append("sort_order", String(formData.sort_order || 0));
+  data.append("is_active", formData.is_active ? "true" : "false");
+  data.append("question_uz", formData.question_uz.trim());
+  data.append("question_ru", formData.question_ru.trim());
+  data.append("answer_uz", formData.answer_uz.trim());
+  data.append("answer_ru", formData.answer_ru.trim());
+  return data;
+}
+
+function getFaqQuestion(faq: FAQ): string {
+  return faq.translations?.uz?.question || faq.translations?.ru?.question || "";
+}
+
+function getFaqAnswer(faq: FAQ): string {
+  return faq.translations?.uz?.answer || faq.translations?.ru?.answer || "";
 }
 
 export default function Savollar() {
@@ -51,8 +85,8 @@ export default function Savollar() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
 
-  const [formData, setFormData] = useState({
-    category: "general" as FAQ["category"],
+  const [formData, setFormData] = useState<FaqFormData>({
+    category: "general",
     is_featured: false,
     sort_order: 0,
     is_active: true,
@@ -80,37 +114,23 @@ export default function Savollar() {
     fetchFaqs();
   }, []);
 
-  const normalizeFaq = (faq: any): FAQ => ({
-    id: faq.id,
-    category: faq.category || "general",
-    category_display: faq.category_display,
-    is_featured: Boolean(faq.is_featured),
-    sort_order: Number(faq.sort_order || 0),
-    is_active: faq.is_active !== false,
-    question_uz: faq.question_uz || faq.translations?.uz?.question || "",
-    question_ru: faq.question_ru || faq.translations?.ru?.question || "",
-    question_en: faq.question_en || faq.translations?.en?.question || "",
-    question_uz_cyrl: faq.question_uz_cyrl || faq.translations?.uz_cyrl?.question || "",
-    answer_uz: faq.answer_uz || faq.translations?.uz?.answer || "",
-    answer_ru: faq.answer_ru || faq.translations?.ru?.answer || "",
-    answer_en: faq.answer_en || faq.translations?.en?.answer || "",
-    answer_uz_cyrl: faq.answer_uz_cyrl || faq.translations?.uz_cyrl?.answer || "",
-    translations: faq.translations,
-  });
-
   const fetchFaqs = async () => {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/faqs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(FAQ_URL, { headers });
       if (response.ok) {
         const data = await response.json();
-        const list = Array.isArray(data) ? data : data.results || [];
-        setFaqs(list.map(normalizeFaq));
+        setFaqs(parseListResponse<FAQ>(data));
+      } else {
+        toast.error("Savollarni yuklashda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Savollarni yuklashda xatolik");
     } finally {
       setLoading(false);
@@ -118,12 +138,13 @@ export default function Savollar() {
   };
 
   const filteredFaqs = faqs.filter((f) =>
-    (f.question_uz || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    getFaqQuestion(f).toLowerCase().includes(searchQuery.toLowerCase()) ||
     (f.category || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAdd = () => {
     setEditingFaq(null);
+    setActiveTab("uz");
     setFormData({
       category: "general",
       is_featured: false,
@@ -137,27 +158,43 @@ export default function Savollar() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (faq: FAQ) => {
+  const handleEdit = async (faq: FAQ) => {
     setEditingFaq(faq);
-    setFormData({
-      category: faq.category,
-      is_featured: faq.is_featured,
-      sort_order: faq.sort_order,
-      is_active: faq.is_active,
-      question_uz: faq.question_uz || "",
-      question_ru: faq.question_ru || "",
-      answer_uz: faq.answer_uz || "",
-      answer_ru: faq.answer_ru || "",
-    });
+    setActiveTab("uz");
     setIsModalOpen(true);
+
+    const token = sessionStorage.getItem("auth_token");
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${FAQ_URL}${faq.id}/`, { headers });
+      if (response.ok) {
+        const data: FAQ = await response.json();
+        setEditingFaq(data);
+        setFormData(parseFaqToForm(data));
+      } else {
+        setFormData(parseFaqToForm(faq));
+      }
+    } catch {
+      setFormData(parseFaqToForm(faq));
+    }
   };
 
   const handleDelete = async () => {
     if (!faqToDelete) return;
+
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
     setIsDeleting(true);
     try {
-      const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/faqs/${faqToDelete.id}`, {
+      const response = await fetch(`${FAQ_URL}${faqToDelete.id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -166,9 +203,13 @@ export default function Savollar() {
         setIsDeleteDialogOpen(false);
         setFaqToDelete(null);
         fetchFaqs();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
+      } else {
+        toast.error("O'chirishda xatolik");
       }
-    } catch (error) {
-      toast.error("Xatolik yuz berdi");
+    } catch {
+      toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsDeleting(false);
     }
@@ -176,33 +217,56 @@ export default function Savollar() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+
+    if (!formData.question_uz.trim() && !formData.question_ru.trim()) {
+      toast.error("Kamida bitta tildagi savol kiritilishi kerak");
+      setActiveTab("uz");
+      return;
+    }
+
+    if (!formData.answer_uz.trim() && !formData.answer_ru.trim()) {
+      toast.error("Kamida bitta tildagi javob kiritilishi kerak");
+      setActiveTab("uz");
+      return;
+    }
 
     const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const data = buildFaqFormData(formData);
+
     try {
       const url = editingFaq
-        ? `${API_BASE_URL}/faqs/${editingFaq.id}`
-        : `${API_BASE_URL}/faqs`;
+        ? `${FAQ_URL}${editingFaq.id}/`
+        : FAQ_URL;
       const method = editingFaq ? "PATCH" : "POST";
 
       const response = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
+        headers: { Authorization: `Bearer ${token}` },
+        body: data,
       });
 
       if (response.ok) {
         toast.success(editingFaq ? "Savol tahrirlandi" : "Savol qo'shildi");
         setIsModalOpen(false);
         fetchFaqs();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
       } else {
-        const errData = await response.json();
-        toast.error(errData.detail || "Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubmitting(false);
@@ -264,7 +328,7 @@ export default function Savollar() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-3">
                     <h3 className="font-bold text-[#1f2937] dark:text-gray-100 text-lg">
-                      {faq.question_uz}
+                      {getFaqQuestion(faq)}
                     </h3>
                     {faq.is_featured && (
                       <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-600 text-[10px] font-bold rounded-full uppercase tracking-wider">
@@ -274,7 +338,7 @@ export default function Savollar() {
                     )}
                   </div>
                   <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2">
-                    {faq.answer_uz}
+                    {getFaqAnswer(faq)}
                   </p>
                   <div className="flex items-center gap-3 pt-2">
                     <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[10px] font-bold rounded-lg uppercase tracking-wider">
@@ -413,7 +477,7 @@ export default function Savollar() {
                       <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Kategoriya</label>
                       <select
                         value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value as FAQ["category"] })}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                         className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all"
                       >
                         {categories.map((c) => (
@@ -422,7 +486,22 @@ export default function Savollar() {
                       </select>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tartib raqami</label>
+                        <input
+                          type="text"
+                          value={formData.sort_order}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "" || /^\d+$/.test(val)) {
+                              setFormData({ ...formData, sort_order: val === "" ? 0 : Number(val) });
+                            }
+                          }}
+                          className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all"
+                          placeholder="0"
+                        />
+                      </div>
                       <div className="flex flex-col justify-end">
                         <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 h-[60px]">
                           <input

@@ -6,7 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { ImageUpload } from "../components/ImageUpload";
 import { toast } from "sonner";
-import { API_BASE_URL, getImageUrl } from "../../config/api";
+import { TEACHERS_URL, DEPARTMENTS_URL, getImageUrl } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { SEO } from "../components/SEO";
 
@@ -20,28 +20,154 @@ interface TeacherTranslation {
 interface Department {
   id: number;
   slug: string;
-  name_uz: string;
-  name_ru?: string;
+  translations?: {
+    uz: { name: string };
+    ru?: { name: string };
+  };
+  name_uz?: string;
 }
 
 interface Teacher {
   id: number;
   slug: string;
   full_name: string;
-  academic_degree: string;
-  academic_rank: string;
+  academic_degree: string | null;
+  academic_rank: string | null;
   category: string;
-  experience_years: number;
+  category_display?: string;
+  experience_years: number | null;
   sort_order: number;
-  department: number | Department;
-  email: string;
-  phone?: string;
-  photo: string;
+  department: number | null;
+  department_name?: string;
+  email: string | null;
+  photo: string | null;
   is_active: boolean;
   translations: {
     uz: TeacherTranslation;
     ru?: TeacherTranslation;
   };
+}
+
+interface TeacherFormData {
+  full_name: string;
+  academic_degree: string;
+  academic_rank: string;
+  category: string;
+  experience_years: number;
+  sort_order: number;
+  email: string;
+  is_active: boolean;
+  position_uz: string;
+  position_ru: string;
+  subject_uz: string;
+  subject_ru: string;
+  bio_uz: string;
+  bio_ru: string;
+  achievements_uz: string;
+  achievements_ru: string;
+  department: string;
+  photo: File | string | null;
+}
+
+const CATEGORY_OPTIONS = [
+  { value: "highest", label: "Eng yuqori toifa" },
+  { value: "first", label: "Birinchi toifa" },
+  { value: "second", label: "Ikkinchi toifa" },
+  { value: "none", label: "Toifasiz" },
+] as const;
+
+function parseListResponse<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object" && "results" in data) {
+    return (data as { results: T[] }).results || [];
+  }
+  return [];
+}
+
+function getDepartmentName(dept: Department): string {
+  return dept.translations?.uz?.name || dept.name_uz || "";
+}
+
+function parseTeacherToForm(teacher: Teacher): TeacherFormData {
+  return {
+    full_name: teacher.full_name || "",
+    academic_degree: teacher.academic_degree || "",
+    academic_rank: teacher.academic_rank || "",
+    category: teacher.category || "none",
+    experience_years: teacher.experience_years ?? 0,
+    sort_order: teacher.sort_order ?? 0,
+    email: teacher.email || "",
+    is_active: teacher.is_active ?? true,
+    position_uz: teacher.translations?.uz?.position || "",
+    position_ru: teacher.translations?.ru?.position || "",
+    subject_uz: teacher.translations?.uz?.subject || "",
+    subject_ru: teacher.translations?.ru?.subject || "",
+    bio_uz: teacher.translations?.uz?.bio || "",
+    bio_ru: teacher.translations?.ru?.bio || "",
+    achievements_uz: teacher.translations?.uz?.achievements || "",
+    achievements_ru: teacher.translations?.ru?.achievements || "",
+    department: teacher.department ? String(teacher.department) : "",
+    photo: teacher.photo ? getImageUrl(teacher.photo) : null,
+  };
+}
+
+function buildTeacherFormData(formData: TeacherFormData): FormData {
+  const data = new FormData();
+
+  data.append("full_name", formData.full_name.trim());
+  data.append("academic_degree", formData.academic_degree.trim());
+  data.append("academic_rank", formData.academic_rank.trim());
+  data.append("category", formData.category || "none");
+  data.append("experience_years", String(formData.experience_years || 0));
+  data.append("sort_order", String(formData.sort_order || 0));
+  data.append("email", formData.email.trim());
+  data.append("is_active", formData.is_active ? "true" : "false");
+
+  data.append("position_uz", formData.position_uz.trim());
+  data.append("position_ru", formData.position_ru.trim());
+  data.append("subject_uz", formData.subject_uz.trim());
+  data.append("subject_ru", formData.subject_ru.trim());
+  data.append("bio_uz", formData.bio_uz.trim());
+  data.append("bio_ru", formData.bio_ru.trim());
+  data.append("achievements_uz", formData.achievements_uz.trim());
+  data.append("achievements_ru", formData.achievements_ru.trim());
+
+  if (formData.department) {
+    data.append("department", formData.department);
+  }
+
+  if (formData.photo instanceof File) {
+    data.append("photo", formData.photo);
+  }
+
+  return data;
+}
+
+function parseApiErrors(errData: unknown): string {
+  if (!errData || typeof errData !== "object") {
+    return "Xatolik yuz berdi";
+  }
+
+  const record = errData as Record<string, unknown>;
+  if (typeof record.detail === "string") {
+    return record.detail;
+  }
+
+  return Object.entries(record)
+    .map(([field, msgs]) => {
+      const message = Array.isArray(msgs) ? msgs.join(", ") : String(msgs);
+      return `${field}: ${message}`;
+    })
+    .join("\n") || "Xatolik yuz berdi";
+}
+
+function getTeacherDepartmentName(teacher: Teacher, departments: Department[]): string {
+  if (teacher.department_name) return teacher.department_name;
+  if (teacher.department) {
+    const dept = departments.find((d) => d.id === teacher.department);
+    if (dept) return getDepartmentName(dept);
+  }
+  return "Kafedrasiz";
 }
 
 export default function Oqituvchilar() {
@@ -55,15 +181,14 @@ export default function Oqituvchilar() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<TeacherFormData>({
     full_name: "",
-    academic_degree: "Yo'q",
-    academic_rank: "Yo'q",
+    academic_degree: "",
+    academic_rank: "",
     category: "none",
     experience_years: 0,
     sort_order: 0,
     email: "",
-    phone: "",
     is_active: true,
     position_uz: "",
     position_ru: "",
@@ -74,7 +199,7 @@ export default function Oqituvchilar() {
     achievements_uz: "",
     achievements_ru: "",
     department: "",
-    photo: null as File | string | null,
+    photo: null,
   });
 
   const languages = [
@@ -90,27 +215,28 @@ export default function Oqituvchilar() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("auth_token");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const [teacherRes, deptRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/teachers`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/departments`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetch(TEACHERS_URL, { headers }),
+        fetch(DEPARTMENTS_URL, { headers }),
       ]);
 
       if (teacherRes.ok) {
         const data = await teacherRes.json();
-        setTeachers(Array.isArray(data) ? data : data.results || []);
+        setTeachers(parseListResponse<Teacher>(data));
       } else {
         toast.error("O'qituvchilarni yuklashda xatolik");
       }
 
       if (deptRes.ok) {
         const data = await deptRes.json();
-        setDepartments(Array.isArray(data) ? data : data.results || []);
+        setDepartments(parseListResponse<Department>(data));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setLoading(false);
@@ -125,15 +251,15 @@ export default function Oqituvchilar() {
 
   const handleAdd = () => {
     setEditingTeacher(null);
+    setActiveTab("uz");
     setFormData({
       full_name: "",
-      academic_degree: "Yo'q",
-      academic_rank: "Yo'q",
+      academic_degree: "",
+      academic_rank: "",
       category: "none",
       experience_years: 0,
-      sort_order: 0,
+      sort_order: teachers.length,
       email: "",
-      phone: "",
       is_active: true,
       position_uz: "",
       position_ru: "",
@@ -149,98 +275,83 @@ export default function Oqituvchilar() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (teacher: Teacher) => {
+  const handleEdit = async (teacher: Teacher) => {
     setEditingTeacher(teacher);
-    setFormData({
-      full_name: teacher.full_name || "",
-      academic_degree: teacher.academic_degree || "Yo'q",
-      academic_rank: teacher.academic_rank || "Yo'q",
-      category: teacher.category || "none",
-      experience_years: teacher.experience_years,
-      sort_order: teacher.sort_order || 0,
-      email: teacher.email,
-      phone: teacher.phone || "",
-      is_active: teacher.is_active,
-      position_uz: teacher.translations.uz.position || "",
-      position_ru: teacher.translations?.ru?.position || "",
-      subject_uz: teacher.translations?.uz?.subject || "",
-      subject_ru: teacher.translations?.ru?.subject || "",
-      bio_uz: teacher.translations?.uz?.bio || "",
-      bio_ru: teacher.translations?.ru?.bio || "",
-      achievements_uz: teacher.translations?.uz?.achievements || "",
-      achievements_ru: teacher.translations?.ru?.achievements || "",
-      department: (teacher.department && typeof teacher.department === 'object') ? String(teacher.department.id) : String(teacher.department || ""),
-      photo: getImageUrl(teacher.photo),
-    });
+    setActiveTab("uz");
     setIsModalOpen(true);
+
+    const token = sessionStorage.getItem("auth_token");
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${TEACHERS_URL}${teacher.slug}/`, { headers });
+      if (response.ok) {
+        const data: Teacher = await response.json();
+        setEditingTeacher(data);
+        setFormData(parseTeacherToForm(data));
+      } else {
+        setFormData(parseTeacherToForm(teacher));
+      }
+    } catch {
+      setFormData(parseTeacherToForm(teacher));
+    }
   };
 
   const handleDelete = async (slug: string) => {
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
     try {
-      const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/teachers/${slug}`, {
+      const response = await fetch(`${TEACHERS_URL}${slug}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("O'qituvchi o'chirildi");
         fetchTeachers();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
         toast.error("O'chirishda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.full_name || !formData.position_uz) {
-      toast.error("Iltimos, barcha majburiy maydonlarni to'ldiring");
+
+    if (!formData.full_name.trim()) {
+      toast.error("To'liq ism majburiy");
+      return;
+    }
+
+    if (!formData.position_uz.trim() && !formData.position_ru.trim()) {
+      toast.error("Kamida bitta tildagi lavozim kiritilishi kerak");
+      setActiveTab("uz");
+      return;
+    }
+
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
       return;
     }
 
     setIsSubmitting(true);
-
-    const token = sessionStorage.getItem("auth_token");
-    const data = new FormData();
-
-    // Required fields based on API docs
-    data.append("full_name", formData.full_name);
-    data.append("academic_degree", formData.academic_degree || "Yo'q");
-    data.append("academic_rank", formData.academic_rank || "Yo'q");
-    data.append("category", formData.category || "none");
-    data.append("experience_years", String(formData.experience_years || 0));
-    data.append("sort_order", String(formData.sort_order || 0));
-    data.append("email", formData.email || "");
-    if (formData.phone) {
-      data.append("phone", formData.phone);
-    }
-    data.append("is_active", String(formData.is_active));
-    
-    // Translation fields
-    data.append("position_uz", formData.position_uz);
-    if (formData.position_ru) data.append("position_ru", formData.position_ru);
-    if (formData.subject_uz) data.append("subject_uz", formData.subject_uz);
-    if (formData.subject_ru) data.append("subject_ru", formData.subject_ru);
-    if (formData.bio_uz) data.append("bio_uz", formData.bio_uz);
-    if (formData.bio_ru) data.append("bio_ru", formData.bio_ru);
-    if (formData.achievements_uz) data.append("achievements_uz", formData.achievements_uz);
-    if (formData.achievements_ru) data.append("achievements_ru", formData.achievements_ru);
-    
-    if (formData.department && formData.department !== "") {
-      data.append("department", String(formData.department));
-    }
-
-    if (formData.photo instanceof File) {
-      data.append("photo", formData.photo);
-    }
+    const data = buildTeacherFormData(formData);
 
     try {
       const url = editingTeacher
-        ? `${API_BASE_URL}/teachers/${editingTeacher.slug}`
-        : `${API_BASE_URL}/teachers`;
+        ? `${TEACHERS_URL}${editingTeacher.slug}/`
+        : TEACHERS_URL;
       const method = editingTeacher ? "PATCH" : "POST";
 
       const response = await fetch(url, {
@@ -253,18 +364,18 @@ export default function Oqituvchilar() {
         toast.success(editingTeacher ? "O'qituvchi tahrirlandi" : "O'qituvchi qo'shildi");
         setIsModalOpen(false);
         fetchTeachers();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
       } else {
-        const errData = await response.json();
-        if (errData && typeof errData === 'object') {
-          const errorMessages = Object.entries(errData)
-            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
-            .join('\n');
-          toast.error(errorMessages || "Xatolik yuz berdi");
-        } else {
-          toast.error("Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
         }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubmitting(false);
@@ -396,13 +507,12 @@ export default function Oqituvchilar() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-[#64748b] dark:text-gray-400">
-                        {teacher.department && typeof teacher.department === 'object' ? teacher.department.name_uz : 
-                         (teacher.department ? departments.find(d => d.id === teacher.department)?.name_uz : null) || "Kafedrasiz"}
+                        {getTeacherDepartmentName(teacher, departments)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-[#64748b] dark:text-gray-400">
-                        {teacher.experience_years} yil
+                        {teacher.experience_years ?? 0} yil
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -470,13 +580,12 @@ export default function Oqituvchilar() {
                   <div className="text-sm">
                     <span className="text-[#64748b] dark:text-gray-400">Kafedra:</span>
                     <p className="text-[#1f2937] dark:text-gray-200 mt-1">
-                      {teacher.department && typeof teacher.department === 'object' ? teacher.department.name_uz : 
-                       (teacher.department ? departments.find(d => d.id === teacher.department)?.name_uz : null) || "Kafedrasiz"}
+                      {getTeacherDepartmentName(teacher, departments)}
                     </p>
                   </div>
                   <div className="text-sm">
                     <span className="text-[#64748b] dark:text-gray-400">Tajriba:</span>
-                    <p className="text-[#1f2937] dark:text-gray-200 mt-1">{teacher.experience_years} yil</p>
+                    <p className="text-[#1f2937] dark:text-gray-200 mt-1">{teacher.experience_years ?? 0} yil</p>
                   </div>
                   <div className="text-sm">
                     <span className="text-[#64748b] dark:text-gray-400">Email:</span>
@@ -563,7 +672,12 @@ export default function Oqituvchilar() {
                       <ImageUpload
                         label="O'qituvchi fotosurati"
                         value={formData.photo}
-                        onChange={(file) => setFormData({ ...formData, photo: file as File })}
+                        onChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            photo: Array.isArray(value) ? value[0] ?? null : value,
+                          })
+                        }
                         placeholder="Fotosuratni yuklash uchun bosing"
                         isUploading={isSubmitting}
                       />
@@ -581,7 +695,7 @@ export default function Oqituvchilar() {
                             placeholder="Masalan: Eshmatov Toshmat"
                           />
                         </div>
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                               Tajriba (yil)
@@ -599,6 +713,65 @@ export default function Oqituvchilar() {
                               placeholder="Masalan: 5"
                             />
                           </div>
+                          <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                              Tartib raqami
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.sort_order}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "" || /^\d+$/.test(val)) {
+                                  setFormData({ ...formData, sort_order: val === "" ? 0 : Number(val) });
+                                }
+                              }}
+                              className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                              Ilmiy daraja
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.academic_degree}
+                              onChange={(e) => setFormData({ ...formData, academic_degree: e.target.value })}
+                              className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
+                              placeholder="Masalan: Fan doktori"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                              Ilmiy unvon
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.academic_rank}
+                              onChange={(e) => setFormData({ ...formData, academic_rank: e.target.value })}
+                              className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
+                              placeholder="Masalan: Professor"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                            Toifa
+                          </label>
+                          <select
+                            value={formData.category}
+                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                            className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
+                          >
+                            {CATEGORY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
@@ -612,7 +785,7 @@ export default function Oqituvchilar() {
                             <option value="">Kafedrani tanlang</option>
                             {departments.map((dept) => (
                               <option key={dept.id} value={dept.id}>
-                                {dept.name_uz}
+                                {getDepartmentName(dept)}
                               </option>
                             ))}
                           </select>
@@ -625,31 +798,17 @@ export default function Oqituvchilar() {
                         <span className="w-4 h-[1px] bg-gray-300" />
                         Aloqa ma'lumotlari
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                            Telefon
-                          </label>
-                          <input
-                            type="tel"
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            placeholder="+998 90 123 45 67"
-                            className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="misol@mail.com"
-                            className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
-                          />
-                        </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="misol@mail.com"
+                          className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
+                        />
                       </div>
                     </div>
                   </div>

@@ -5,7 +5,14 @@ import {
   Settings2, BookOpen, Save, Trash, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
-import { API_BASE_URL, getImageUrl } from "../../config/api";
+import {
+  ADMISSION_CURRENT_URL,
+  DOCUMENTS_URL,
+  SUBJECTS_URL,
+  getImageUrl,
+  parseApiErrors,
+  toDateInputValue,
+} from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../components/ui/alert-dialog";
 
@@ -27,10 +34,11 @@ interface AdmissionData {
 }
 
 interface TranslationField {
+  name?: string;
+  description?: string;
   document_name?: string;
   note?: string;
   subject_name?: string;
-  description?: string;
 }
 
 interface AdmissionDocument {
@@ -132,14 +140,17 @@ export default function Qabul() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/admission/current`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(ADMISSION_CURRENT_URL, { headers });
 
       if (response.ok) {
         const data: AdmissionResponse = await response.json();
         const info = data.admission_info;
-        
+
         if (info) {
           setCurrentAdmission(info);
           setFormData({
@@ -148,10 +159,10 @@ export default function Qabul() {
             grant_quota: info.grant_quota ?? 0,
             contract_quota: info.contract_quota ?? 0,
             contract_price: info.contract_price || "",
-            application_start: info.application_start?.split("T")[0] || "",
-            application_end: info.application_end?.split("T")[0] || "",
-            exam_date: info.exam_date?.split("T")[0] || "",
-            results_date: info.results_date?.split("T")[0] || "",
+            application_start: toDateInputValue(info.application_start),
+            application_end: toDateInputValue(info.application_end),
+            exam_date: toDateInputValue(info.exam_date),
+            results_date: toDateInputValue(info.results_date),
             online_apply_url: info.online_apply_url || "",
             is_active: info.is_active ?? true,
           });
@@ -159,8 +170,14 @@ export default function Qabul() {
 
         setDocuments(data.documents || []);
         setSubjects(data.subjects || []);
+      } else if (response.status === 404) {
+        setCurrentAdmission(null);
+        setDocuments([]);
+        setSubjects([]);
+      } else {
+        toast.error("Ma'lumotlarni yuklashda xatolik");
       }
-    } catch (error) {
+    } catch {
       toast.error("Ma'lumotlarni yuklashda xatolik");
     } finally {
       setLoading(false);
@@ -176,30 +193,31 @@ export default function Qabul() {
       return;
     }
 
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const token = sessionStorage.getItem("auth_token");
-      
-      const url = `${API_BASE_URL}/admission/current`;
-      const method = "PUT";
-      
-      // Prepare payload with correct types
+      const method = currentAdmission ? "PUT" : "POST";
       const payload = {
         academic_year: formData.academic_year,
-        total_quota: parseInt(String(formData.total_quota)) || 0,
-        grant_quota: parseInt(String(formData.grant_quota)) || 0,
-        contract_quota: parseInt(String(formData.contract_quota)) || 0,
-        contract_price: formData.contract_price,
-        application_start: formData.application_start,
-        application_end: formData.application_end,
-        exam_date: formData.exam_date,
-        results_date: formData.results_date,
-        online_apply_url: formData.online_apply_url,
+        total_quota: Number(formData.total_quota) || 0,
+        grant_quota: Number(formData.grant_quota) || 0,
+        contract_quota: Number(formData.contract_quota) || 0,
+        contract_price: formData.contract_price || null,
+        application_start: formData.application_start || null,
+        application_end: formData.application_end || null,
+        exam_date: formData.exam_date || null,
+        results_date: formData.results_date || null,
+        online_apply_url: formData.online_apply_url || null,
         is_active: formData.is_active,
       };
 
-      const response = await fetch(url, {
+      const response = await fetch(ADMISSION_CURRENT_URL, {
         method,
         headers: {
           "Content-Type": "application/json",
@@ -209,23 +227,20 @@ export default function Qabul() {
       });
 
       if (response.ok) {
-        toast.success("Qabul ma'lumotlari yangilandi");
+        toast.success(currentAdmission ? "Qabul ma'lumotlari yangilandi" : "Qabul ma'lumotlari yaratildi");
         fetchData();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
-        const errData = await response.json();
-        
-        // Detailed error reporting for 400 Bad Request
-        if (typeof errData === "object" && !Array.isArray(errData)) {
-          const firstField = Object.keys(errData)[0];
-          const errorMsg = Array.isArray(errData[firstField]) 
-            ? `${firstField}: ${errData[firstField][0]}` 
-            : (errData.detail || "Ma'lumotlarni saqlashda xatolik");
-          toast.error(errorMsg);
-        } else {
-          toast.error("Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
         }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubmitting(false);
@@ -252,10 +267,10 @@ export default function Qabul() {
     setDocFormData({
       is_required: doc.is_required,
       sort_order: doc.sort_order,
-      document_name_uz: doc.translations.uz.document_name || "",
-      document_name_ru: doc.translations.ru.document_name || "",
-      note_uz: doc.translations.uz.note || "",
-      note_ru: doc.translations.ru.note || "",
+      document_name_uz: doc.translations.uz.name || doc.translations.uz.document_name || "",
+      document_name_ru: doc.translations.ru?.name || doc.translations.ru?.document_name || "",
+      note_uz: doc.translations.uz.description || doc.translations.uz.note || "",
+      note_ru: doc.translations.ru?.description || doc.translations.ru?.note || "",
       document_file: getImageUrl(doc.document_file),
     });
     setIsDocModalOpen(true);
@@ -264,40 +279,69 @@ export default function Qabul() {
   const handleDeleteDoc = async (id: number) => {
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/admission/documents/${id}`, {
+      if (!token) {
+        toast.error("Avtorizatsiya talab qilinadi");
+        return;
+      }
+      const response = await fetch(`${DOCUMENTS_URL}${id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("Hujjat o'chirildi");
         fetchData();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
+      } else {
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Xatolik yuz berdi");
     }
   };
 
   const handleDocSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsDocSubmitting(true);
+
+    if (!docFormData.document_name_uz) {
+      toast.error("Hujjat nomi (UZ) majburiy");
+      return;
+    }
+
+    if (!editingDoc && !(docFormData.document_file instanceof File)) {
+      toast.error("Hujjat fayli majburiy");
+      return;
+    }
 
     const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
+    setIsDocSubmitting(true);
+
     const data = new FormData();
     data.append("is_required", String(docFormData.is_required));
     data.append("sort_order", String(docFormData.sort_order));
-    data.append("document_name_uz", docFormData.document_name_uz);
-    data.append("document_name_ru", docFormData.document_name_ru);
-    data.append("note_uz", docFormData.note_uz);
-    data.append("note_ru", docFormData.note_ru);
+    data.append("name_uz", docFormData.document_name_uz);
+    data.append("name_ru", docFormData.document_name_ru);
+    data.append("description_uz", docFormData.note_uz);
+    data.append("description_ru", docFormData.note_ru);
+    data.append("is_active", "true");
 
     if (docFormData.document_file instanceof File) {
-      data.append("document_file", docFormData.document_file);
+      data.append("file", docFormData.document_file);
     }
 
     try {
-      const url = editingDoc 
-        ? `${API_BASE_URL}/admission/documents/${editingDoc.id}` 
-        : `${API_BASE_URL}/admission/documents`;
+      const url = editingDoc ? `${DOCUMENTS_URL}${editingDoc.id}/` : DOCUMENTS_URL;
       const method = editingDoc ? "PATCH" : "POST";
 
       const response = await fetch(url, {
@@ -310,10 +354,18 @@ export default function Qabul() {
         toast.success(editingDoc ? "Hujjat tahrirlandi" : "Hujjat qo'shildi");
         setIsDocModalOpen(false);
         fetchData();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
-        toast.error("Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsDocSubmitting(false);
@@ -341,10 +393,10 @@ export default function Qabul() {
       subject_type: sub.subject_type,
       max_score: sub.max_score,
       sort_order: sub.sort_order,
-      subject_name_uz: sub.translations.uz.subject_name || "",
-      subject_name_ru: sub.translations.ru.subject_name || "",
+      subject_name_uz: sub.translations.uz.name || sub.translations.uz.subject_name || "",
+      subject_name_ru: sub.translations.ru?.name || sub.translations.ru?.subject_name || "",
       description_uz: sub.translations.uz.description || "",
-      description_ru: sub.translations.ru.description || "",
+      description_ru: sub.translations.ru?.description || "",
     });
     setIsSubModalOpen(true);
   };
@@ -352,47 +404,85 @@ export default function Qabul() {
   const handleDeleteSub = async (id: number) => {
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/admission/subjects/${id}`, {
+      if (!token) {
+        toast.error("Avtorizatsiya talab qilinadi");
+        return;
+      }
+      const response = await fetch(`${SUBJECTS_URL}${id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         toast.success("Fan o'chirildi");
         fetchData();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
+      } else {
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Xatolik yuz berdi");
     }
   };
 
   const handleSubSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubSubmitting(true);
+
+    if (!subFormData.subject_name_uz) {
+      toast.error("Fan nomi (UZ) majburiy");
+      return;
+    }
 
     const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+      toast.error("Avtorizatsiya talab qilinadi");
+      return;
+    }
+
+    setIsSubSubmitting(true);
+
+    const data = new FormData();
+    data.append("subject_type", subFormData.subject_type);
+    data.append("max_score", String(subFormData.max_score));
+    data.append("sort_order", String(subFormData.sort_order));
+    data.append("name_uz", subFormData.subject_name_uz);
+    data.append("name_ru", subFormData.subject_name_ru);
+    data.append("description_uz", subFormData.description_uz);
+    data.append("description_ru", subFormData.description_ru);
+    data.append("is_active", "true");
+
     try {
-      const url = editingSub 
-        ? `${API_BASE_URL}/admission/subjects/${editingSub.id}` 
-        : `${API_BASE_URL}/admission/subjects`;
+      const url = editingSub ? `${SUBJECTS_URL}${editingSub.id}/` : SUBJECTS_URL;
       const method = editingSub ? "PATCH" : "POST";
 
       const response = await fetch(url, {
         method,
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify(subFormData),
+        headers: { Authorization: `Bearer ${token}` },
+        body: data,
       });
 
       if (response.ok) {
         toast.success(editingSub ? "Fan tahrirlandi" : "Fan qo'shildi");
         setIsSubModalOpen(false);
         fetchData();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q");
       } else {
-        toast.error("Xatolik yuz berdi");
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
       }
-    } catch (error) {
+    } catch {
       toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubSubmitting(false);
@@ -621,7 +711,7 @@ export default function Qabul() {
                       {sub.sort_order}
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">{sub.translations.uz.subject_name}</h4>
+                      <h4 className="font-bold text-gray-900 dark:text-white text-sm md:text-base">{sub.translations.uz.name || sub.translations.uz.subject_name}</h4>
                       <p className="text-[10px] md:text-xs text-gray-500 font-medium uppercase tracking-wider">
                         {sub.subject_type} • Max: {sub.max_score} ball
                       </p>
@@ -673,7 +763,7 @@ export default function Qabul() {
                       ) : (
                         <AlertCircle className="w-5 h-5 text-gray-400" />
                       )}
-                      <h4 className="font-bold text-gray-900 dark:text-white leading-tight text-sm md:text-base">{doc.translations.uz.document_name}</h4>
+                      <h4 className="font-bold text-gray-900 dark:text-white leading-tight text-sm md:text-base">{doc.translations.uz.name || doc.translations.uz.document_name}</h4>
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => handleEditDoc(doc)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md">
@@ -684,8 +774,8 @@ export default function Qabul() {
                       </button>
                     </div>
                   </div>
-                  {doc.translations.uz.note && (
-                    <p className="text-xs md:text-sm text-gray-500 line-clamp-2 pl-8">{doc.translations.uz.note}</p>
+                  {(doc.translations.uz.description || doc.translations.uz.note) && (
+                    <p className="text-xs md:text-sm text-gray-500 line-clamp-2 pl-8">{doc.translations.uz.description || doc.translations.uz.note}</p>
                   )}
                 </div>
               ))}

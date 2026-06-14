@@ -129,9 +129,16 @@ export function Sidebar() {
               {isEducationOpen && (
                 <ul className="mt-1 ml-12 space-y-1">
                   <li>
-                    <button className="w-full text-left px-4 py-2 text-sm text-[#64748b] dark:text-gray-400 hover:text-[#0d89b1] transition-colors">
+                    <NavLink
+                      to="/fanlar"
+                      className={({ isActive }) =>
+                        `w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-2 ${
+                          isActive ? "text-[#0d89b1] font-bold" : "text-[#64748b] dark:text-gray-400 hover:text-[#0d89b1]"
+                        }`
+                      }
+                    >
                       Fanlar
-                    </button>
+                    </NavLink>
                   </li>
                   <li>
                     <NavLink
