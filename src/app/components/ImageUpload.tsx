@@ -1,1 +1,1 @@
-export { FileUpload, ImageUpload, VideoUpload } from "./FileUpload";
+export { FileUpload, ImageUpload, VideoUpload, DocumentUpload } from "./FileUpload";

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Upload, X, FileVideo, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, X, FileVideo, FileText, AlertCircle, Loader2 } from "lucide-react";
 
 interface FileUploadProps {
   value: string | File | File[] | null;
@@ -40,13 +40,23 @@ export function FileUpload({
       }
 
       if (typeof value === "string") {
-        setPreviews([value]);
+        if (value.toLowerCase().includes(".pdf")) {
+          const fileName = value.split("/").pop() || "Jadval fayli.pdf";
+          setPreviews([`pdf:${fileName}`]);
+        } else {
+          setPreviews([value]);
+        }
         return;
       }
 
       if (value instanceof File) {
         if (isVideo && value.type.startsWith("video/")) {
           setPreviews([]);
+        } else if (
+          value.type === "application/pdf" ||
+          value.name.toLowerCase().endsWith(".pdf")
+        ) {
+          setPreviews([`pdf:${value.name}`]);
         } else {
           const reader = new FileReader();
           reader.onloadend = () => {
@@ -85,6 +95,7 @@ export function FileUpload({
 
     const maxBytes = maxSizeMB * 1024 * 1024;
     const validFiles: File[] = [];
+    const acceptsPdf = accept.includes(".pdf") || accept.includes("application/pdf");
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -99,14 +110,27 @@ export function FileUpload({
 
     if (isVideo) {
       onChange(multiple ? validFiles : validFiles[0]);
-    } else {
-      const allImages = validFiles.every(f => f.type.startsWith("image/"));
-      if (allImages) {
-        onChange(multiple ? validFiles : validFiles[0]);
-      } else {
-        setUploadError("Iltimos, faqat rasm fayllarini tanlang");
-      }
+      return;
     }
+
+    const isValidDocument = (file: File) => {
+      if (file.type.startsWith("image/")) return true;
+      if (acceptsPdf && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"))) {
+        return true;
+      }
+      return false;
+    };
+
+    if (validFiles.every(isValidDocument)) {
+      onChange(multiple ? validFiles : validFiles[0]);
+      return;
+    }
+
+    setUploadError(
+      acceptsPdf
+        ? "Iltimos, PDF yoki rasm faylini tanlang"
+        : "Iltimos, faqat rasm fayllarini tanlang",
+    );
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -207,7 +231,17 @@ export function FileUpload({
         <div className={multiple ? "grid grid-cols-2 gap-2" : "relative"}>
           {previews.map((preview, index) => (
             <div key={index} className="relative">
-              {isVideo ? (
+              {preview.startsWith("pdf:") ? (
+                <div className="flex items-center gap-3 w-full h-32 px-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <FileText className="w-8 h-8 text-red-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                      {preview.replace("pdf:", "")}
+                    </p>
+                    <p className="text-xs text-gray-500">PDF fayl</p>
+                  </div>
+                </div>
+              ) : isVideo ? (
                 <video
                   src={preview}
                   controls
@@ -250,4 +284,19 @@ export function ImageUpload(props: Omit<FileUploadProps, "isVideo" | "accept">) 
 
 export function VideoUpload(props: Omit<FileUploadProps, "isVideo" | "accept">) {
   return <FileUpload {...props} accept="video/*" isVideo={true} />;
+}
+
+export function DocumentUpload(
+  props: Omit<FileUploadProps, "isVideo" | "accept" | "multiple">,
+) {
+  return (
+    <FileUpload
+      {...props}
+      accept=".pdf,image/*,application/pdf"
+      isVideo={false}
+      multiple={false}
+      placeholder={props.placeholder || "PDF yoki rasm yuklash uchun bosing"}
+      maxSizeMB={props.maxSizeMB ?? 50}
+    />
+  );
 }

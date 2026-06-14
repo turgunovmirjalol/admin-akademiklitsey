@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Plus, Search, Edit, Trash2, X, Loader2, FileText, Download, Save } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Loader2, FileText, Download, Save } from "lucide-react";
 import { toast } from "sonner";
 import {
   DARS_JADVALI_URL,
@@ -8,6 +8,7 @@ import {
   parseApiErrors,
   parseListResponse,
 } from "../../config/api";
+import { DocumentUpload } from "../components/ImageUpload";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
 import {
   AlertDialog,
@@ -20,15 +21,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 
 type ScheduleType = "exam" | "lesson" | "other";
 
+interface ScheduleTranslations {
+  uz: { title: string; description?: string };
+  ru?: { title: string; description?: string };
+}
+
 interface ScheduleItem {
   id: number;
-  translations: {
-    uz: { title: string; description?: string };
-    ru?: { title: string; description?: string };
-  };
+  translations: ScheduleTranslations;
   file: string;
   schedule_type?: ScheduleType;
   sort_order: number;
@@ -45,6 +55,8 @@ interface ScheduleFormData {
   schedule_type: ScheduleType;
   sort_order: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
   file: File | string | null;
 }
 
@@ -53,6 +65,52 @@ const SCHEDULE_TYPES: { id: ScheduleType; label: string }[] = [
   { id: "exam", label: "Imtihon jadvali" },
   { id: "other", label: "Boshqa" },
 ];
+
+const emptyFormData = (): ScheduleFormData => ({
+  title_uz: "",
+  title_ru: "",
+  description_uz: "",
+  description_ru: "",
+  schedule_type: "lesson",
+  sort_order: 1,
+  is_active: true,
+  created_at: toDateTimeInputValue(new Date().toISOString()),
+  updated_at: toDateTimeInputValue(new Date().toISOString()),
+  file: null,
+});
+
+function toDateTimeInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toIsoFromDateTimeInput(value: string): string {
+  if (!value) return new Date().toISOString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return new Date().toISOString();
+  return date.toISOString();
+}
+
+function normalizeScheduleItem(raw: ScheduleItem): ScheduleItem {
+  let translations = raw.translations;
+  if (typeof translations === "string") {
+    try {
+      translations = JSON.parse(translations);
+    } catch {
+      translations = { uz: { title: "", description: "" } };
+    }
+  }
+
+  return {
+    ...raw,
+    translations: translations || { uz: { title: "", description: "" } },
+    sort_order: raw.sort_order ?? 1,
+    is_active: raw.is_active ?? true,
+  };
+}
 
 function getScheduleTitle(item: ScheduleItem): string {
   return item.translations?.uz?.title || item.translations?.ru?.title || "";
@@ -63,31 +121,34 @@ function getScheduleDescription(item: ScheduleItem): string {
 }
 
 function parseScheduleToForm(item: ScheduleItem): ScheduleFormData {
+  const normalized = normalizeScheduleItem(item);
+  const now = toDateTimeInputValue(new Date().toISOString());
   return {
-    title_uz: item.translations?.uz?.title || "",
-    title_ru: item.translations?.ru?.title || "",
-    description_uz: item.translations?.uz?.description || "",
-    description_ru: item.translations?.ru?.description || "",
-    schedule_type: item.schedule_type || "lesson",
-    sort_order: item.sort_order ?? 0,
-    is_active: item.is_active ?? true,
-    file: item.file ? getImageUrl(item.file) : null,
+    title_uz: normalized.translations?.uz?.title || "",
+    title_ru: normalized.translations?.ru?.title || "",
+    description_uz: normalized.translations?.uz?.description || "",
+    description_ru: normalized.translations?.ru?.description || "",
+    schedule_type: normalized.schedule_type || "lesson",
+    sort_order: normalized.sort_order ?? 1,
+    is_active: normalized.is_active ?? true,
+    created_at: toDateTimeInputValue(normalized.created_at) || now,
+    updated_at: now,
+    file: normalized.file ? getImageUrl(normalized.file) : null,
   };
 }
 
-function buildScheduleFormData(form: ScheduleFormData, editing?: ScheduleItem): FormData {
+function buildScheduleFormData(form: ScheduleFormData): FormData {
   const data = new FormData();
-  const now = new Date().toISOString();
 
   data.append("title_uz", form.title_uz.trim());
   data.append("title_ru", form.title_ru.trim());
   data.append("description_uz", form.description_uz.trim());
   data.append("description_ru", form.description_ru.trim());
   data.append("schedule_type", form.schedule_type);
-  data.append("sort_order", String(form.sort_order));
+  data.append("sort_order", String(Math.max(1, form.sort_order || 1)));
   data.append("is_active", form.is_active ? "true" : "false");
-  data.append("created_at", editing?.created_at || now);
-  data.append("updated_at", now);
+  data.append("created_at", toIsoFromDateTimeInput(form.created_at));
+  data.append("updated_at", toIsoFromDateTimeInput(form.updated_at));
 
   if (form.file instanceof File) {
     data.append("file", form.file);
@@ -103,19 +164,8 @@ export default function DarsJadvali() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
-
-  const [formData, setFormData] = useState<ScheduleFormData>({
-    title_uz: "",
-    title_ru: "",
-    description_uz: "",
-    description_ru: "",
-    schedule_type: "lesson",
-    sort_order: 0,
-    is_active: true,
-    file: null,
-  });
+  const [formData, setFormData] = useState<ScheduleFormData>(emptyFormData());
 
   const languages = [
     { id: "uz", label: "O'zbekcha" },
@@ -139,10 +189,12 @@ export default function DarsJadvali() {
       if (response.ok) {
         const data = await response.json();
         setSchedules(
-          parseListResponse<ScheduleItem>(data).sort(
-            (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
-          ),
+          parseListResponse<ScheduleItem>(data)
+            .map(normalizeScheduleItem)
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
         );
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Jadvallarni ko'rish uchun tizimga kiring");
       } else {
         toast.error("Jadvallarni yuklashda xatolik");
       }
@@ -161,14 +213,8 @@ export default function DarsJadvali() {
     setEditingItem(null);
     setActiveTab("uz");
     setFormData({
-      title_uz: "",
-      title_ru: "",
-      description_uz: "",
-      description_ru: "",
-      schedule_type: "lesson",
-      sort_order: schedules.length,
-      is_active: true,
-      file: null,
+      ...emptyFormData(),
+      sort_order: Math.max(1, schedules.length + 1),
     });
     setIsModalOpen(true);
   };
@@ -189,7 +235,7 @@ export default function DarsJadvali() {
         return;
       }
 
-      const data: ScheduleItem = await response.json();
+      const data = normalizeScheduleItem(await response.json());
       setEditingItem(data);
       setFormData(parseScheduleToForm(data));
       setActiveTab("uz");
@@ -236,65 +282,58 @@ export default function DarsJadvali() {
 
     if (!formData.title_uz.trim()) {
       toast.error("Sarlavha (UZ) majburiy");
+      setActiveTab("uz");
+      return;
+    }
+
+    if (!formData.created_at || !formData.updated_at) {
+      toast.error("Yaratilgan va yangilangan sanalar majburiy");
       return;
     }
 
     if (!editingItem && !(formData.file instanceof File)) {
-      toast.error("Jadval fayli majburiy");
+      toast.error("Jadval fayli (PDF yoki rasm) majburiy");
       return;
     }
 
     const token = sessionStorage.getItem("auth_token");
     if (!token) {
-      toast.error("Avtorizatsiya talab qilinadi");
+      toast.error("Avtorizatsiya talab qilinadi. Qayta tizimga kiring");
       return;
     }
 
     setIsSubmitting(true);
-    setUploadProgress(0);
 
-    const data = buildScheduleFormData(formData, editingItem || undefined);
+    const body = buildScheduleFormData(formData);
     const url = editingItem ? `${DARS_JADVALI_URL}${editingItem.id}/` : DARS_JADVALI_URL;
     const method = editingItem ? "PATCH" : "POST";
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-
-        xhr.upload.addEventListener("progress", (event) => {
-          if (event.lengthComputable) {
-            setUploadProgress(Math.round((event.loaded / event.total) * 100));
-          }
-        });
-
-        xhr.addEventListener("load", () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            try {
-              const errorData = JSON.parse(xhr.responseText || "{}");
-              reject(new Error(parseApiErrors(errorData)));
-            } catch {
-              reject(new Error("Server xatosi"));
-            }
-          }
-        });
-
-        xhr.addEventListener("error", () => reject(new Error("Tarmoq xatosi")));
-        xhr.open(method, url);
-        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        xhr.send(data);
+      const response = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+        body,
       });
 
-      setUploadProgress(100);
-      toast.success(editingItem ? "Jadval tahrirlandi" : "Jadval qo'shildi");
-      setTimeout(() => {
+      if (response.ok) {
+        toast.success(editingItem ? "Jadval tahrirlandi" : "Jadval qo'shildi");
         setIsModalOpen(false);
-        setUploadProgress(0);
-      }, 400);
-      fetchSchedules();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Server bilan bog'lanishda xatolik");
+        setFormData(emptyFormData());
+        setEditingItem(null);
+        fetchSchedules();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error("Ruxsat yo'q. Qayta tizimga kiring");
+      } else {
+        let errData: unknown;
+        try {
+          errData = await response.json();
+        } catch {
+          errData = null;
+        }
+        toast.error(parseApiErrors(errData));
+      }
+    } catch {
+      toast.error("Server bilan bog'lanishda xatolik");
     } finally {
       setIsSubmitting(false);
     }
@@ -423,186 +462,188 @@ export default function DarsJadvali() {
         )}
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-white dark:bg-[#1f2937] w-full max-w-2xl rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 animate-in fade-in zoom-in duration-200 overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="px-6 md:px-10 py-6 md:py-8 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h3 className="text-xl md:text-2xl font-bold text-[#1f2937] dark:text-gray-100">
-                {editingItem ? "Jadvalni tahrirlash" : "Yangi jadval qo'shish"}
-              </h3>
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-between">
-                <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-                  {languages.map((lang) => (
-                    <button
-                      key={lang.id}
-                      type="button"
-                      onClick={() => setActiveTab(lang.id)}
-                      className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                        activeTab === lang.id
-                          ? "bg-white dark:bg-gray-700 text-[#0d89b1] shadow-sm"
-                          : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                      }`}
-                    >
-                      {lang.label}
-                    </button>
-                  ))}
-                </div>
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          if (!isSubmitting) {
+            setIsModalOpen(open);
+            if (!open) {
+              setEditingItem(null);
+              setFormData(emptyFormData());
+            }
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingItem ? "Jadvalni tahrirlash" : "Yangi jadval qo'shish"}
+            </DialogTitle>
+            <DialogDescription>
+              Barcha majburiy maydonlarni to'ldiring: sarlavha, sanalar va jadval fayli.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
+              {languages.map((lang) => (
                 <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  key={lang.id}
+                  type="button"
+                  onClick={() => setActiveTab(lang.id)}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+                    activeTab === lang.id
+                      ? "bg-white dark:bg-gray-700 text-[#0d89b1] shadow-sm"
+                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  }`}
                 >
-                  <X className="w-5 h-5" />
+                  {lang.label}
                 </button>
+              ))}
+            </div>
+
+            <div className="p-5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Sarlavha ({activeTab.toUpperCase()}) {activeTab === "uz" && "*"}
+                </label>
+                <input
+                  type="text"
+                  value={activeTab === "uz" ? formData.title_uz : formData.title_ru}
+                  onChange={(e) => {
+                    const field = activeTab === "uz" ? "title_uz" : "title_ru";
+                    setFormData({ ...formData, [field]: e.target.value });
+                  }}
+                  placeholder={`Masalan: 10-A sinf dars jadvali (${activeTab})`}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Tavsif ({activeTab.toUpperCase()})
+                </label>
+                <textarea
+                  value={activeTab === "uz" ? formData.description_uz : formData.description_ru}
+                  onChange={(e) => {
+                    const field = activeTab === "uz" ? "description_uz" : "description_ru";
+                    setFormData({ ...formData, [field]: e.target.value });
+                  }}
+                  placeholder="Jadval haqida qisqacha ma'lumot..."
+                  rows={2}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all resize-none text-sm"
+                />
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 md:p-10 space-y-6 overflow-y-auto">
-              <div className="p-5 md:p-6 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
-                <h4 className="text-xs font-bold text-[#0d89b1] uppercase tracking-widest flex items-center gap-2 mb-6">
-                  <span className="w-4 h-[1px] bg-[#0d89b1]" />
-                  {languages.find((l) => l.id === activeTab)?.label} tilidagi ma'lumotlar
-                </h4>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                      Sarlavha ({activeTab.toUpperCase()}) {activeTab === "uz" && "*"}
-                    </label>
-                    <input
-                      type="text"
-                      value={activeTab === "uz" ? formData.title_uz : formData.title_ru}
-                      onChange={(e) => {
-                        const field = activeTab === "uz" ? "title_uz" : "title_ru";
-                        setFormData({ ...formData, [field]: e.target.value });
-                      }}
-                      placeholder={`Masalan: 10-A sinf dars jadvali (${activeTab})`}
-                      className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all text-sm"
-                      required={activeTab === "uz"}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                      Tavsif ({activeTab.toUpperCase()})
-                    </label>
-                    <textarea
-                      value={activeTab === "uz" ? formData.description_uz : formData.description_ru}
-                      onChange={(e) => {
-                        const field = activeTab === "uz" ? "description_uz" : "description_ru";
-                        setFormData({ ...formData, [field]: e.target.value });
-                      }}
-                      placeholder="Jadval haqida qisqacha ma'lumot..."
-                      rows={2}
-                      className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all resize-none text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    Jadval turi
-                  </label>
-                  <select
-                    value={formData.schedule_type}
-                    onChange={(e) =>
-                      setFormData({ ...formData, schedule_type: e.target.value as ScheduleType })
-                    }
-                    className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
-                  >
-                    {SCHEDULE_TYPES.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    Tartib raqami
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formData.sort_order}
-                    onChange={(e) =>
-                      setFormData({ ...formData, sort_order: Number(e.target.value) || 0 })
-                    }
-                    className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100 dark:border-gray-700">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    Fayl (PDF yoki rasm) {!editingItem && "*"}
-                  </label>
-                  <input
-                    type="file"
-                    accept=".pdf,image/*"
-                    onChange={(e) => setFormData({ ...formData, file: e.target.files?.[0] || null })}
-                    className="w-full text-xs md:text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs md:file:text-sm file:font-bold file:bg-[#0d89b1]/10 file:text-[#0d89b1] hover:file:bg-[#0d89b1]/20 cursor-pointer"
-                    required={!editingItem}
-                  />
-                </div>
-                <div className="flex items-center gap-3 pt-6">
-                  <input
-                    type="checkbox"
-                    id="is_active_schedule"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    className="w-5 h-5 rounded text-[#0d89b1] focus:ring-[#0d89b1]"
-                  />
-                  <label
-                    htmlFor="is_active_schedule"
-                    className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer"
-                  >
-                    Faol holatda
-                  </label>
-                </div>
-              </div>
-
-              {isSubmitting && (
-                <div className="space-y-2 pt-4">
-                  <div className="flex justify-between text-xs font-bold text-[#0d89b1]">
-                    <span>Fayl yuklanmoqda...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2 overflow-hidden border border-gray-200 dark:border-gray-700">
-                    <motion.div
-                      className="h-full bg-[#0d89b1] rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${uploadProgress}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-700">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Jadval turi
+                </label>
+                <select
+                  value={formData.schedule_type}
+                  onChange={(e) =>
+                    setFormData({ ...formData, schedule_type: e.target.value as ScheduleType })
+                  }
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
                 >
-                  Bekor qilish
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-8 py-2.5 bg-[#0d89b1] text-white font-bold rounded-lg hover:bg-[#0a6d8f] transition-all shadow-xl shadow-[#0d89b1]/20 active:scale-[0.98] disabled:opacity-50 text-sm"
-                >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                  Saqlash
-                </button>
+                  {SCHEDULE_TYPES.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Tartib raqami
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={formData.sort_order}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sort_order: Math.max(1, Number(e.target.value) || 1) })
+                  }
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Yaratilgan sana va vaqt *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.created_at}
+                  onChange={(e) => setFormData({ ...formData, created_at: e.target.value })}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Yangilangan sana va vaqt *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.updated_at}
+                  onChange={(e) => setFormData({ ...formData, updated_at: e.target.value })}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <DocumentUpload
+              label={editingItem ? "Yangi fayl (ixtiyoriy)" : "Jadval fayli (PDF yoki rasm) *"}
+              value={formData.file}
+              onChange={(file) => setFormData({ ...formData, file: file as File })}
+              placeholder="PDF yoki rasm yuklash uchun bosing yoki torting"
+              isUploading={isSubmitting}
+              maxSizeMB={50}
+            />
+
+            <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <input
+                type="checkbox"
+                id="is_active_schedule"
+                checked={formData.is_active}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                className="w-5 h-5 rounded text-[#0d89b1] focus:ring-[#0d89b1]"
+              />
+              <label
+                htmlFor="is_active_schedule"
+                className="text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer"
+              >
+                Faol holatda (saytda ko'rinadi)
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                disabled={isSubmitting}
+                className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-8 py-2.5 bg-[#0d89b1] text-white font-bold rounded-lg hover:bg-[#0a6d8f] transition-all shadow-xl shadow-[#0d89b1]/20 active:scale-[0.98] disabled:opacity-50 text-sm"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                {editingItem ? "Saqlash" : "Qo'shish"}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
