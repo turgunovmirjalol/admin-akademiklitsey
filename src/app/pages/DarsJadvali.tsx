@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Plus, Search, Edit, Trash2, Loader2, FileText, Download, Save } from "lucide-react";
 import { toast } from "sonner";
 import {
+  API_BASE_URL,
   DARS_JADVALI_URL,
   getImageUrl,
   parseApiErrors,
@@ -227,7 +228,7 @@ export default function DarsJadvali() {
     }
 
     try {
-      const response = await fetch(`${DARS_JADVALI_URL}${item.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/dars-jadvali/${item.id}/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -253,7 +254,7 @@ export default function DarsJadvali() {
         return;
       }
 
-      const response = await fetch(`${DARS_JADVALI_URL}${id}/`, {
+      const response = await fetch(`${API_BASE_URL}/dars-jadvali/${id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -305,7 +306,7 @@ export default function DarsJadvali() {
     setIsSubmitting(true);
 
     const body = buildScheduleFormData(formData);
-    const url = editingItem ? `${DARS_JADVALI_URL}${editingItem.id}/` : DARS_JADVALI_URL;
+    const url = editingItem ? `${API_BASE_URL}/dars-jadvali/${editingItem.id}/` : DARS_JADVALI_URL;
     const method = editingItem ? "PATCH" : "POST";
 
     try {

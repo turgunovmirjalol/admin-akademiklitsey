@@ -108,16 +108,45 @@ export default function Slayderlar() {
   const handleDelete = async (id: number) => {
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/sliders/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/sliders/${id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (response.ok) {
         toast.success("Slayder o'chirildi");
         fetchSliders();
+        return;
       }
+
+      // Try to parse error details from the API response
+      let errorMessage = "Slayderni o'chirishda xatolik yuz berdi";
+      try {
+        const errorData = await response.json();
+        if (errorData?.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData && typeof errorData === "object") {
+          const firstKey = Object.keys(errorData)[0];
+          const msgs = errorData[firstKey];
+          if (Array.isArray(msgs)) {
+            errorMessage = msgs.join(", ");
+          } else if (typeof msgs === "string") {
+            errorMessage = msgs;
+          }
+        }
+      } catch {
+        // If response body is not JSON, try text
+        try {
+          const textError = await response.text();
+          if (textError) errorMessage = textError;
+        } catch {
+          // Use default message
+        }
+      }
+
+      toast.error(errorMessage);
     } catch (error) {
-      toast.error("Xatolik yuz berdi");
+      toast.error("Server bilan bog'lanishda xatolik");
     }
   };
 
@@ -426,6 +455,19 @@ export default function Slayderlar() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-6">
+                    <div>
+                      <label className="block text-xs md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                        Tartib raqami (sort_order)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.sort_order}
+                        onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all text-sm"
+                        placeholder="Tartib raqamini kiriting..."
+                      />
+                    </div>
                     <div className="flex flex-col justify-end">
                       <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 h-[52px]">
                         <input
