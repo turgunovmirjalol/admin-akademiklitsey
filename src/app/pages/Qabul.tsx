@@ -330,14 +330,13 @@ export default function Qabul() {
     const data = new FormData();
     data.append("is_required", String(docFormData.is_required));
     data.append("sort_order", String(docFormData.sort_order));
-    data.append("name_uz", docFormData.document_name_uz);
-    data.append("name_ru", docFormData.document_name_ru);
-    data.append("description_uz", docFormData.note_uz);
-    data.append("description_ru", docFormData.note_ru);
-    data.append("is_active", "true");
+    data.append("document_name_uz", docFormData.document_name_uz);
+    data.append("document_name_ru", docFormData.document_name_ru);
+    data.append("note_uz", docFormData.note_uz);
+    data.append("note_ru", docFormData.note_ru);
 
     if (docFormData.document_file instanceof File) {
-      data.append("file", docFormData.document_file);
+      data.append("document_file", docFormData.document_file);
     }
 
     try {
@@ -451,11 +450,10 @@ export default function Qabul() {
     data.append("subject_type", subFormData.subject_type);
     data.append("max_score", String(subFormData.max_score));
     data.append("sort_order", String(subFormData.sort_order));
-    data.append("name_uz", subFormData.subject_name_uz);
-    data.append("name_ru", subFormData.subject_name_ru);
+    data.append("subject_name_uz", subFormData.subject_name_uz);
+    data.append("subject_name_ru", subFormData.subject_name_ru);
     data.append("description_uz", subFormData.description_uz);
     data.append("description_ru", subFormData.description_ru);
-    data.append("is_active", "true");
 
     try {
       const url = editingSub ? `${SUBJECTS_URL}${editingSub.id}/` : SUBJECTS_URL;

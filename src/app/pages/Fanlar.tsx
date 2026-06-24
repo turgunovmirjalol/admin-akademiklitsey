@@ -89,8 +89,8 @@ function buildSubjectFormData(form: SubjectFormData): FormData {
   data.append("duration_minutes", String(form.duration_minutes));
   data.append("sort_order", String(form.sort_order));
   data.append("is_active", form.is_active ? "true" : "false");
-  data.append("name_uz", form.name_uz.trim());
-  data.append("name_ru", form.name_ru.trim());
+  data.append("subject_name_uz", form.name_uz.trim());
+  data.append("subject_name_ru", form.name_ru.trim());
   data.append("description_uz", form.description_uz.trim());
   data.append("description_ru", form.description_ru.trim());
   return data;
