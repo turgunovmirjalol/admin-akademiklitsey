@@ -16,6 +16,7 @@ import AlbomRasmlari from "./pages/AlbomRasmlari";
 import Videolar from "./pages/Videolar";
 import Slayderlar from "./pages/Slayderlar";
 import Statistika from "./pages/Statistika";
+import Murojaatlar from "./pages/Murojaatlar";
 
 export const router = createBrowserRouter([
   {
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
       { path: "videolar", Component: Videolar },
       { path: "slayderlar", Component: Slayderlar },
       { path: "statistika", Component: Statistika },
+      { path: "murojaatlar", Component: Murojaatlar },
       { path: "qabul", Component: Qabul },
       { path: "sozlamalar", Component: Sozlamalar },
       { path: "dars-jadvali", Component: DarsJadvali },

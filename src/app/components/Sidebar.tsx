@@ -19,12 +19,14 @@ import {
   HelpCircle,
   BarChart3,
   Film,
+  Mail,
 } from "lucide-react";
 import { useState } from "react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 const navItems = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/murojaatlar", label: "Murojaatlar", icon: Mail },
   { path: "/yangiliklar", label: "Yangiliklar", icon: Newspaper },
   { path: "/elonlar", label: "E'lonlar", icon: Bell },
   { path: "/oqituvchilar", label: "O'qituvchilar", icon: Users },

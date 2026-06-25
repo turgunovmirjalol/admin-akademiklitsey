@@ -13,6 +13,8 @@ export const SUBJECTS_URL = `${API_BASE_URL}/subjects/`;
 export const DARS_JADVALI_URL = `${API_BASE_URL}/dars-jadvali/`;
 export const GALLERY_ALBUMS_URL = `${API_BASE_URL}/gallery/albums/`;
 export const VIDEOS_URL = `${API_BASE_URL}/videos/`;
+export const CONTACT_MESSAGES_URL = `${API_BASE_URL}/messages/`;
+export const CONTACT_STATS_URL = `${API_BASE_URL}/messages/stats/`;
 
 export function parseListResponse<T>(data: unknown): T[] {
   if (Array.isArray(data)) return data;
