@@ -1,4 +1,4 @@
-import { Bell, Sun, Moon, LogOut, ChevronDown } from "lucide-react";
+import { Sun, Moon, LogOut, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { useAuth } from "../context/AuthContext";
@@ -39,12 +39,6 @@ export function Navbar() {
           )}
         </button>
 
-        {/* Notifications */}
-        <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-[#64748b] dark:text-gray-400">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
-
         {/* User Profile */}
         <div className="relative" ref={profileRef}>
           <button
@@ -61,7 +55,7 @@ export function Navbar() {
             </div>
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#0d89b1]/20 relative">
               <ImageWithFallback
-                src="/logoicon.png"
+                src="/litseylogo.png"
                 alt="Admin"
                 className="w-full h-full"
                 objectFit="contain"

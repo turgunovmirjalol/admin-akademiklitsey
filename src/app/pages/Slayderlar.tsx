@@ -499,6 +499,11 @@ export default function Slayderlar() {
                     isUploading={isSubmitting}
                     uploadProgress={uploadProgress}
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                    Tavsiya etilgan o'lcham: <strong>1920x1080px</strong> (16:9, gorizontal),
+                    kamida 1280px kenglikda. Shu nisbatda yuklansa, telefonda ham, kompyuterda ham
+                    cho'zilib yoki kesilib qolmasdan to'liq chiqadi. Format: JPG/PNG/WEBP, maks. 8 MB.
+                  </p>
                   <div className="pt-2">
                     <VideoUpload
                       label="Video (ixtiyoriy)"

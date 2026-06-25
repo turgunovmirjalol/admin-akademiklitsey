@@ -1,24 +1,9 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, X, Loader2, BarChart3, Save, Users, Book, Trophy, GraduationCap, School, UserCheck } from "lucide-react";
+import { Plus, Edit, Trash2, X, Loader2, BarChart3, Save } from "lucide-react";
 import { toast } from "sonner";
 import { STATISTICS_URL } from "../../config/api";
 import { PageSkeleton as SkeletonLoader } from "../components/PageSkeleton";
-
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  users: Users,
-  book: Book,
-  trophy: Trophy,
-  graduation: GraduationCap,
-  school: School,
-  check: UserCheck,
-  chart: BarChart3,
-};
-
-const DynamicIcon = ({ name, className }: { name: string; className?: string }) => {
-  const IconComponent = ICON_MAP[name.toLowerCase()] || BarChart3;
-  return <IconComponent className={className} />;
-};
 
 interface Statistic {
   id: number;
@@ -38,7 +23,6 @@ interface StatisticFormData {
   value: number;
   label_uz: string;
   label_ru: string;
-  icon: string;
   sort_order: number;
 }
 
@@ -48,7 +32,6 @@ function parseStatistic(stat: Statistic): StatisticFormData {
     value: stat.value ?? 0,
     label_uz: stat.translations?.uz?.label || "",
     label_ru: stat.translations?.ru?.label || "",
-    icon: stat.icon || "users",
     sort_order: stat.sort_order ?? 0,
   };
 }
@@ -58,7 +41,6 @@ function buildStatisticPayload(formData: StatisticFormData, isEditing: boolean) 
     value: formData.value,
     label_uz: formData.label_uz.trim(),
     label_ru: formData.label_ru.trim(),
-    icon: formData.icon.trim() || null,
     sort_order: formData.sort_order,
   };
 
@@ -100,7 +82,6 @@ export default function Statistika() {
     value: 0,
     label_uz: "",
     label_ru: "",
-    icon: "users",
     sort_order: 1,
   });
 
@@ -144,7 +125,6 @@ export default function Statistika() {
       value: 0,
       label_uz: "",
       label_ru: "",
-      icon: "users",
       sort_order: stats.length + 1,
     });
     setIsModalOpen(true);
@@ -290,9 +270,6 @@ export default function Statistika() {
             </div>
 
             <div className="flex flex-col items-center text-center space-y-4">
-              <div className="p-4 bg-[#0d89b1]/10 text-[#0d89b1] rounded-2xl">
-                <DynamicIcon name={stat.icon || "chart"} className="w-8 h-8" />
-              </div>
               <div>
                 <div className="text-4xl font-black text-[#1f2937] dark:text-gray-100 mb-1">
                   {stat.value}+
@@ -410,36 +387,22 @@ export default function Statistika() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    Ikonka nomi
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.icon}
-                    onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                    className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 outline-none transition-all"
-                    placeholder="Masalan: users, book, trophy"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    Tartib raqami
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.sort_order}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "" || /^\d+$/.test(val)) {
-                        setFormData({ ...formData, sort_order: val === "" ? 0 : Number(val) });
-                      }
-                    }}
-                    className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 outline-none transition-all"
-                    placeholder="1"
-                  />
-                </div>
+              <div className="max-w-xs">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Tartib raqami
+                </label>
+                <input
+                  type="text"
+                  value={formData.sort_order}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "" || /^\d+$/.test(val)) {
+                      setFormData({ ...formData, sort_order: val === "" ? 0 : Number(val) });
+                    }
+                  }}
+                  className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-[#0d89b1]/10 outline-none transition-all"
+                  placeholder="1"
+                />
               </div>
 
               <div className="flex justify-end gap-4 pt-8 border-t border-gray-100 dark:border-gray-700">

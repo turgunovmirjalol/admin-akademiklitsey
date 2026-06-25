@@ -76,7 +76,7 @@ export function Sidebar() {
         <div className="h-[60px] flex items-center justify-center border-b border-gray-200 dark:border-gray-700 px-4">
           <div className="flex items-center gap-3">
             <ImageWithFallback
-              src="/logoicon.png"
+              src="/litseylogo.png"
               alt="FDTU AL Logo"
               className="w-10 h-10"
               objectFit="contain"

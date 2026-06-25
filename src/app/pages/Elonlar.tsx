@@ -12,7 +12,6 @@ import { SEO } from "../components/SEO";
 
 interface AnnouncementTranslation {
   title: string;
-  short_description: string;
   content: string;
 }
 
@@ -39,8 +38,6 @@ interface AnnouncementFormData {
   expires_at: string;
   title_uz: string;
   title_ru: string;
-  short_description_uz: string;
-  short_description_ru: string;
   content_uz: string;
   content_ru: string;
   image: File | string | null;
@@ -54,8 +51,6 @@ function parseAnnouncementToForm(item: Announcement): AnnouncementFormData {
     expires_at: toDateInputValue(item.expires_at),
     title_uz: item.translations?.uz?.title || "",
     title_ru: item.translations?.ru?.title || "",
-    short_description_uz: item.translations?.uz?.short_description || "",
-    short_description_ru: item.translations?.ru?.short_description || "",
     content_uz: item.translations?.uz?.content || "",
     content_ru: item.translations?.ru?.content || "",
     image: item.image ? getImageUrl(item.image) : null,
@@ -65,7 +60,7 @@ function parseAnnouncementToForm(item: Announcement): AnnouncementFormData {
 function buildAnnouncementFormData(formData: AnnouncementFormData): FormData {
   const data = new FormData();
 
-  data.append("status", formData.status || "draft");
+  data.append("status", formData.status || "published");
   data.append("is_important", formData.is_important ? "true" : "false");
 
   if (formData.published_at) {
@@ -77,8 +72,6 @@ function buildAnnouncementFormData(formData: AnnouncementFormData): FormData {
 
   data.append("title_uz", formData.title_uz.trim());
   data.append("title_ru", formData.title_ru.trim());
-  data.append("short_description_uz", formData.short_description_uz.trim());
-  data.append("short_description_ru", formData.short_description_ru.trim());
   data.append("content_uz", formData.content_uz.trim());
   data.append("content_ru", formData.content_ru.trim());
 
@@ -99,14 +92,12 @@ export default function Elonlar() {
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
 
   const [formData, setFormData] = useState<AnnouncementFormData>({
-    status: "draft",
+    status: "published",
     is_important: false,
     published_at: new Date().toISOString().split("T")[0],
     expires_at: "",
     title_uz: "",
     title_ru: "",
-    short_description_uz: "",
-    short_description_ru: "",
     content_uz: "",
     content_ru: "",
     image: null as File | string | null,
@@ -154,14 +145,12 @@ export default function Elonlar() {
     setEditingItem(null);
     setActiveTab("uz");
     setFormData({
-      status: "draft",
+      status: "published",
       is_important: false,
       published_at: new Date().toISOString().split("T")[0],
       expires_at: "",
       title_uz: "",
       title_ru: "",
-      short_description_uz: "",
-      short_description_ru: "",
       content_uz: "",
       content_ru: "",
       image: null,
@@ -470,22 +459,7 @@ export default function Elonlar() {
               
               <form onSubmit={handleSubmit} className="p-8 space-y-8">
                 {/* General Settings */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
-                    >
-                      <option value="draft">Qoralama</option>
-                      <option value="published">Nashr etilgan</option>
-                      <option value="archived">Arxivlangan</option>
-                    </select>
-                  </div>
-
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
                   <div>
                     <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                       Muhimlik
@@ -498,19 +472,6 @@ export default function Elonlar() {
                       <option value="false">Oddiy</option>
                       <option value="true">Muhim</option>
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                      Nashr sanasi
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.published_at}
-                      onChange={(e) => setFormData({ ...formData, published_at: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
-                      required
-                    />
                   </div>
 
                   <div>
@@ -542,22 +503,6 @@ export default function Elonlar() {
                       className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
                       required={activeTab === "uz"}
                       placeholder={`${activeTab.toUpperCase()} tilida sarlavha...`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                      Qisqa tavsif ({activeTab.toUpperCase()})
-                    </label>
-                    <textarea
-                      value={activeTab === "uz" ? formData.short_description_uz : formData.short_description_ru}
-                      onChange={(e) => {
-                        const field = `short_description_${activeTab}` as keyof typeof formData;
-                        setFormData({ ...formData, [field]: e.target.value });
-                      }}
-                      rows={2}
-                      className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100 resize-none"
-                      placeholder={`${activeTab.toUpperCase()} tilida qisqa tavsif...`}
                     />
                   </div>
 

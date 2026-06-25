@@ -12,7 +12,6 @@ import { SEO } from "../components/SEO";
 
 interface NewsTranslation {
   title: string;
-  short_description: string;
   content: string;
 }
 
@@ -28,7 +27,6 @@ interface News {
   views_count: number;
   status: "draft" | "published";
   status_display: string;
-  is_featured: boolean;
   published_at: string;
   created_at: string;
   updated_at: string;
@@ -46,13 +44,10 @@ export default function Yangiliklar() {
   const [activeTab, setActiveTab] = useState<"uz" | "ru">("uz");
   
   const [formData, setFormData] = useState({
-    status: "draft",
-    is_featured: false,
+    status: "published",
     published_at: new Date().toISOString().split("T")[0],
     title_uz: "",
     title_ru: "",
-    short_description_uz: "",
-    short_description_ru: "",
     content_uz: "",
     content_ru: "",
     image: null as File | string | null,
@@ -110,13 +105,10 @@ export default function Yangiliklar() {
   const handleAdd = () => {
     setEditingNews(null);
     setFormData({
-      status: "draft",
-      is_featured: false,
+      status: "published",
       published_at: new Date().toISOString().split("T")[0],
       title_uz: "",
       title_ru: "",
-      short_description_uz: "",
-      short_description_ru: "",
       content_uz: "",
       content_ru: "",
       image: null,
@@ -128,12 +120,9 @@ export default function Yangiliklar() {
     setEditingNews(item);
     setFormData({
       status: item.status,
-      is_featured: item.is_featured,
       published_at: item.published_at ? item.published_at.split("T")[0] : new Date().toISOString().split("T")[0],
       title_uz: item.translations?.uz?.title || "",
       title_ru: item.translations?.ru?.title || "",
-      short_description_uz: item.translations?.uz?.short_description || "",
-      short_description_ru: item.translations?.ru?.short_description || "",
       content_uz: item.translations?.uz?.content || "",
       content_ru: item.translations?.ru?.content || "",
       image: getImageUrl(item.image),
@@ -144,7 +133,7 @@ export default function Yangiliklar() {
   const handleDelete = async (slug: string) => {
     try {
       const token = sessionStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/news/${slug}`, {
+      const response = await fetch(`${API_BASE_URL}/news/${slug}/`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -171,8 +160,7 @@ export default function Yangiliklar() {
     const data = new FormData();
 
     data.append("status", formData.status);
-    data.append("is_featured", formData.is_featured ? "true" : "false");
-    
+
     // published_at ISO format (Backend uchun ISO string)
     const publishedAt = new Date(formData.published_at);
     if (!isNaN(publishedAt.getTime())) {
@@ -182,10 +170,7 @@ export default function Yangiliklar() {
     // Required field title_uz
     if (formData.title_uz) data.append("title_uz", formData.title_uz);
     if (formData.title_ru) data.append("title_ru", formData.title_ru);
-    
-    if (formData.short_description_uz) data.append("short_description_uz", formData.short_description_uz);
-    if (formData.short_description_ru) data.append("short_description_ru", formData.short_description_ru);
-    
+
     if (formData.content_uz) data.append("content_uz", formData.content_uz);
     if (formData.content_ru) data.append("content_ru", formData.content_ru);
 
@@ -335,11 +320,6 @@ export default function Yangiliklar() {
                       <div className="text-sm font-medium text-[#1f2937] dark:text-gray-100">
                         {item.translations?.uz?.title}
                       </div>
-                      {item.is_featured && (
-                        <span className="text-[10px] bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded mt-1 inline-block">
-                          Asosiy
-                        </span>
-                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-[#64748b] dark:text-gray-400">
@@ -432,49 +412,6 @@ export default function Yangiliklar() {
               </div>
               
               <form onSubmit={handleSubmit} className="p-8 space-y-8">
-                {/* General Settings */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
-                    >
-                      <option value="draft">Qoralama (Draft)</option>
-                      <option value="published">Nashr qilish (Published)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                      Asosiy yangilik
-                    </label>
-                    <select
-                      value={String(formData.is_featured)}
-                      onChange={(e) => setFormData({ ...formData, is_featured: e.target.value === "true" })}
-                      className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
-                    >
-                      <option value="false">Yo'q</option>
-                      <option value="true">Ha</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                      Nashr sanasi
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.published_at}
-                      onChange={(e) => setFormData({ ...formData, published_at: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
-                      required
-                    />
-                  </div>
-                </div>
 
                 {/* Language Specific Fields */}
                 <div className="space-y-6">
@@ -492,22 +429,6 @@ export default function Yangiliklar() {
                       className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100"
                       required={activeTab === "uz"}
                       placeholder={`${activeTab.toUpperCase()} tilida sarlavha...`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                      Qisqa tavsif ({activeTab.toUpperCase()})
-                    </label>
-                    <textarea
-                      value={activeTab === "uz" ? formData.short_description_uz : formData.short_description_ru}
-                      onChange={(e) => {
-                        const field = `short_description_${activeTab}` as keyof typeof formData;
-                        setFormData({ ...formData, [field]: e.target.value });
-                      }}
-                      rows={3}
-                      className="w-full px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-[#0d89b1]/10 focus:border-[#0d89b1] outline-none transition-all dark:text-gray-100 resize-none"
-                      placeholder={`${activeTab.toUpperCase()} tilida qisqa tavsif...`}
                     />
                   </div>
 

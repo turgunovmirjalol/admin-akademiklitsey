@@ -72,7 +72,7 @@ export default function Login({ onLogin }: LoginProps) {
           <div className="flex justify-center mb-4">
             <div className="w-24 h-24 bg-white rounded-xl shadow-lg flex items-center justify-center p-4 border border-gray-200">
               <ImageWithFallback
-                src="/litseylogo 1.png"
+                src="/litseylogo.png"
                 alt="Farg'ona Davlat Texnika Universiteti 1-Son Akademik Litseyi"
                 className="w-full h-full"
                 objectFit="contain"

@@ -13,7 +13,7 @@ export function SEO({
   title,
   description,
   keywords,
-  image = "/litseylogo 1.png",
+  image = "/litseylogo.png",
   url = "https://admin.fdtual.uz/",
   type = "website",
 }: SEOProps) {
