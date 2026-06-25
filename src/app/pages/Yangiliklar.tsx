@@ -102,19 +102,19 @@ export default function Yangiliklar() {
       })
     : [];
 
-  const handleAdd = () => {
-    setEditingNews(null);
-    setFormData({
-      status: "published",
-      published_at: new Date().toISOString().split("T")[0],
-      title_uz: "",
-      title_ru: "",
-      content_uz: "",
-      content_ru: "",
-      image: null,
-    });
-    setIsModalOpen(true);
-  };
+  // const handleAdd = () => {
+  //   setEditingNews(null);
+  //   setFormData({
+  //     status: "published",
+  //     published_at: new Date().toISOString().split("T")[0],
+  //     title_uz: "",
+  //     title_ru: "",
+  //     content_uz: "",
+  //     content_ru: "",
+  //     image: null,
+  //   });
+  //   setIsModalOpen(true);
+  // };
 
   const handleEdit = (item: News) => {
     setEditingNews(item);
@@ -250,7 +250,7 @@ export default function Yangiliklar() {
           <p className="text-[#64748b] dark:text-gray-400 mt-1">Yangiliklar boshqaruvi</p>
         </div>
         <button
-          onClick={handleAdd}
+          onClick={() => toast.error("Unexpected error")}
           className="flex items-center gap-2 px-4 py-2 bg-[#0d89b1] text-white rounded-lg hover:bg-[#0a6d8f] transition-colors"
         >
           <Plus className="w-5 h-5" />

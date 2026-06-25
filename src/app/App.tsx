@@ -12,7 +12,7 @@ export default function App() {
     return (
       <>
         <Login onLogin={login} />
-        <Toaster position="top-right" />
+        <Toaster position="top-right" richColors />
       </>
     );
   }
@@ -20,7 +20,7 @@ export default function App() {
   return (
     <SettingsProvider>
       <RouterProvider router={router} />
-      <Toaster position="top-right" />
+      <Toaster position="top-right" richColors />
     </SettingsProvider>
   );
 }

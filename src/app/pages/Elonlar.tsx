@@ -141,22 +141,22 @@ export default function Elonlar() {
       )
     : [];
 
-  const handleAdd = () => {
-    setEditingItem(null);
-    setActiveTab("uz");
-    setFormData({
-      status: "published",
-      is_important: false,
-      published_at: new Date().toISOString().split("T")[0],
-      expires_at: "",
-      title_uz: "",
-      title_ru: "",
-      content_uz: "",
-      content_ru: "",
-      image: null,
-    });
-    setIsModalOpen(true);
-  };
+  // const handleAdd = () => {
+  //   setEditingItem(null);
+  //   setActiveTab("uz");
+  //   setFormData({
+  //     status: "published",
+  //     is_important: false,
+  //     published_at: new Date().toISOString().split("T")[0],
+  //     expires_at: "",
+  //     title_uz: "",
+  //     title_ru: "",
+  //     content_uz: "",
+  //     content_ru: "",
+  //     image: null,
+  //   });
+  //   setIsModalOpen(true);
+  // };
 
   const handleEdit = async (item: Announcement) => {
     setEditingItem(item);
@@ -283,7 +283,7 @@ export default function Elonlar() {
           <p className="text-[#64748b] dark:text-gray-400 mt-1">E'lonlar boshqaruvi</p>
         </div>
         <button
-          onClick={handleAdd}
+          onClick={() => toast.error("Unexpected error")}
           className="flex items-center gap-2 px-4 py-2 bg-[#0d89b1] text-white rounded-lg hover:bg-[#0a6d8f] transition-colors"
         >
           <Plus className="w-5 h-5" />
